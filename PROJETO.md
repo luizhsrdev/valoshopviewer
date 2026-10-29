@@ -1,7 +1,7 @@
 # Minha Loja — documento do projeto
 
 > Documento vivo: tudo sobre o app, o ambiente, as decisões tomadas, ideias arquivadas e ideias futuras.
-> Última atualização: 2026-10-29 (preparação do ambiente — o app em si ainda não foi especificado).
+> Última atualização: 2026-10-29. Fase 1: tema proposto, API confirmada e telas ainda não codadas.
 
 ---
 
@@ -18,9 +18,15 @@
 | Conta Expo | `luizhsnn` — projeto `@luizhsnn/minha-loja` (ID `d92bd695-e76d-4c1d-8618-91cd5c84fd89`) |
 | Pasta local | `~/development/GitHub/valshopviewer` |
 
-Requisitos já conhecidos: **notificações** e **tarefas em segundo plano** (por isso usamos development build, não Expo Go — veja a seção 5).
+**Objetivo:** um app Android para mim e alguns amigos vermos a loja do Valorant sem abrir o jogo. Rápido, prático, intuitivo, todo em pt-BR. Distribuição por APK entre amigos (sem Play Store). Não é afiliado à Riot.
 
-Funcionalidades do app: _a definir nos próximos prompts._
+**Escopo da fase 1 (tela única, Loja):**
+- Boas-vindas com aviso e aceite, guardando a versão do texto aceito. Inclui o aviso de fã da Riot em pt-BR e em inglês.
+- Login pela página oficial da Riot numa WebView. O app nunca vê a senha.
+- Renovação silenciosa da sessão (cookie `ssid`) e botão "Sair" que apaga tudo.
+- Loja: pacote(s) em destaque grande(s), em carrossel quando houver mais de um; grid 2x2 com as 4 ofertas do dia; contagem até a troca; saldo de VP, Radianita e KC; puxar para atualizar; atualização automática; skeleton, estado de erro e cache.
+
+Requisitos técnicos: **notificações** e **tarefas em segundo plano** (por isso usamos development build, não Expo Go — veja a seção 5).
 
 ---
 
@@ -70,6 +76,12 @@ Funcionalidades do app: _a definir nos próximos prompts._
 8. Gerei o `expo-env.d.ts` (tipos do Expo; ignorado pelo git).
 9. **EAS**: rodei `eas init` (criou `@luizhsnn/minha-loja`, com sua autorização) e `eas update:configure --platform android`.
 10. **Git**: o repositório já existia (branch `master`, sem commits, remote `origin` → `github.com/luizhsrdev/valoshopviewer`). **Nada foi commitado**, por pedido seu.
+
+### 2026-10-29 — fase 1, etapa 1 (pesquisa + tema)
+11. Baixei o `DESIGN.md` (Raycast) de VoltAgent/awesome-design-md para a raiz.
+12. Criei o `src/theme/index.ts` (cores, raridade, tipografia, espaço, raios, elevação, brilho, movimento).
+13. Instalei a `@expo-google-fonts/inter`.
+14. Confirmei o estado atual da API (seção 6.5).
 
 Verificações: `expo-doctor` passou nas 20/20 checagens; `expo config` confirma o nome, o package e o scheme corretos nas duas variantes.
 Pendência conhecida: `tsc --noEmit` acusa **1 erro em `src/components/app-tabs.web.tsx`**, que vem do próprio template (componente só para web). Deve sumir quando trocarmos as telas de exemplo com `npm run reset-project`.
@@ -137,6 +149,42 @@ Com o Metro rodando, aperte `a`. Na primeira vez, instale o APK de dev no emulad
 
 ---
 
+## 6.5 API — estado confirmado em 2026-10-29
+
+A documentação de referência mudou de endereço. `valapidocs.techchair.io` não resolve mais (DNS). A atual é **https://valapidocs.techchrism.me**, mas o repositório dela não recebe commits desde abril de 2024, então confirmei o comportamento atual por testes diretos e por apps da comunidade que estão ativos em 2026.
+
+| Etapa | Endpoint | Situação |
+|---|---|---|
+| Login | WebView em `https://auth.riotgames.com/authorize?redirect_uri=https%3A%2F%2Fplayvalorant.com%2Fopt_in&client_id=play-valorant-web-prod&response_type=token%20id_token&nonce=1&scope=account%20openid` | ✅ Funciona. Sem cookie, responde **303** para `authenticate.riotgames.com/login` (o doc antigo dizia 301). Depois do login, redireciona para `playvalorant.com/opt_in#access_token=…&id_token=…&expires_in=3600` |
+| Reautenticação | O mesmo `GET /authorize`, enviando os cookies | ✅ Em uso em set./out. de 2026. Só com `ssid`, dura cerca de 1 semana; com todos os cookies de auth (`ssid`, `clid`, `csid`, `tdid`, `sub`), cerca de 3 semanas. **A Riot rotaciona os cookies a cada reauth, então é preciso salvar os novos.** O `ssid` é HttpOnly |
+| Entitlements | `POST https://entitlements.auth.riotgames.com/api/token/v1` (Bearer, body `{}`) | ✅ Inalterado |
+| Userinfo | `GET https://auth.riotgames.com/userinfo` (Bearer) → `sub` = PUUID, `acct.game_name`/`tag_line` | ✅ Inalterado. O PUUID também sai do `sub` do JWT |
+| Riot-geo | `PUT https://riot-geo.pas.si.riotgames.com/pas/v1/product/valorant`, body `{id_token}`, Bearer → `affinities.live` | ✅ Responde (401 sem token). Para BR, `live` = `br`, mas o **shard é `na`** (mapear `br`/`latam` → `na`) |
+| Loja | **`POST https://pd.{shard}.a.pvp.net/store/v3/storefront/{puuid}`**, body `{}` | ⚠️ **Mudou:** a v2 (GET) da documentação foi substituída pela v3 (POST). A resposta mantém `FeaturedBundle`, `SkinsPanelLayout` (`SingleItemStoreOffers[].Cost`), `BonusStore?` e `AccessoryStore` |
+| Carteira | `GET https://pd.{shard}.a.pvp.net/store/v1/wallet/{puuid}` → `Balances` | ✅ Inalterado |
+
+Cabeçalhos dos endpoints `pd.*`: `Authorization: Bearer`, `X-Riot-Entitlements-JWT`, `X-Riot-ClientVersion` (= `riotClientVersion` de `valorant-api.com/v1/version`, hoje `release-13.09-shipping-11-5777412`) e `X-Riot-ClientPlatform` (JSON de plataforma PC em base64).
+
+IDs das moedas: VP `85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741` · Radianita `e59aa87c-4cbf-517a-5983-6e81511be9b7` · Kingdom Credits `85ca954a-41f2-ce94-9b45-8ca3dd39a00d`.
+
+Dados estáticos (valorant-api.com): `/v1/version`, `/v1/contenttiers`, `/v1/weapons/skins` (a oferta usa o UUID de `levels[0]`), `/v1/bundles`, `/v1/currencies`.
+
+**Plano para a renovação da sessão (a validar no development build):** no Android, o `fetch` do React Native usa o mesmo cookie jar da WebView (CookieManager). O plano:
+1. Depois do login, ler os cookies de `auth.riotgames.com` com `@react-native-cookies/cookies`, que enxerga HttpOnly, e salvar no `expo-secure-store`.
+2. Na renovação (inclusive em segundo plano), restaurar os cookies no jar e chamar `/authorize`.
+3. Ler o token na URL final e salvar os cookies rotacionados.
+
+Se o `fetch` perder o fragmento `#access_token` ao seguir o redirect, o plano B é uma WebView invisível (só em primeiro plano). Se a renovação falhar, o app volta para o login.
+
+## 6.6 Tema
+
+O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que está na raiz do projeto). A prévia visual está em https://claude.ai/artifact/D6rRMPsdswa91z4L3KAYfm (privada).
+- Só modo escuro, com a escada de superfícies `#07080A → #0D0D0D → #101111 → #121212`, borda hairline `#242728` e nenhuma sombra.
+- Acento único `#FF4655`: contagem regressiva, indicador do carrossel e botão de login/aceite. O botão primário comum continua branco, como no Raycast.
+- Raridade (contenttiers): Select `#5A9FE2`, Deluxe `#009587`, Premium `#D1548D`, Exclusive `#F5955B`, Ultra `#FAD663`. No card, vira borda de 1px a 55% e brilho de 16px a 18%.
+- Fonte Inter (`@expo-google-fonts/inter`), sem o `ss03`, que o RN não suporta no Android. Números com `tabular-nums`.
+- Nenhum logo, fonte ou arte da Riot. As únicas imagens são de skins e pacotes da valorant-api.com, e as moedas aparecem como texto (VP/RAD/KC).
+
 ## 7. Regras do projeto
 
 - Instalar dependências **sempre** com `npx expo install <pacote>`.
@@ -156,7 +204,15 @@ Com o Metro rodando, aperte `a`. Na primeira vez, instale o APK de dev no emulad
 - `appVersionSource: remote` + `autoIncrement` no perfil `apk`.
 - EAS CLI via `npx eas-cli@latest`, sem instalação global.
 
+- Storefront **v3 (POST)** no lugar da v2.
+- Mapear `br`/`latam` → shard `na`.
+- Tema Raycast + acento `#FF4655` + raridade como destaque.
+
 ### Depreciadas / arquivadas
+- **Storefront v2 (GET)**: substituída pela v3.
+- **Login com usuário e senha via API (`PUT /api/v1/authorization`)**: descartado. É inseguro e hoje é bloqueado por captcha. O login é pela WebView oficial.
+- **Ícones oficiais das moedas e fontes da Riot**: descartados por regra de marca. As moedas aparecem como texto.
+- **ss03 da Inter**: sem suporte no RN Android.
 - **Expo Go** como ambiente de teste: descartado (seção 5).
 - **Node 26**: descartado por não ser LTS; trocado pelo Node 24 LTS.
 - **Perfil `preview`** (variante intermediária `.preview`): não criado por enquanto. O perfil `apk` cobre a distribuição.
@@ -164,6 +220,8 @@ Com o Metro rodando, aperte `a`. Na primeira vez, instale o APK de dev no emulad
 - **Build local** (`expo run:android`): só como plano B; o padrão é o EAS na nuvem.
 
 ### Futuras (a avaliar)
+- Mercado noturno (`BonusStore`) e loja de acessórios (`AccessoryStore`): os dados já vêm na v3.
+- Notificação quando a loja trocar ou quando uma skin da lista de desejos aparecer.
 - Definir as funcionalidades da "Minha Loja" (próximos prompts).
 - Armazenamento local: `expo-sqlite` (dados relacionais) e/ou `expo-secure-store` (dados sensíveis); backup/exportação manual (arquivo JSON via `expo-sharing`/`expo-file-system`).
 - Notificações locais com `expo-notifications` e tarefas periódicas com `expo-background-task`.
