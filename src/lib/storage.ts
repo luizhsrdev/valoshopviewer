@@ -18,6 +18,8 @@ export const keys = {
   dailyNotified: 'daily:notified',
   /** Última combinação de desejos avisada. */
   wishlistNotified: 'wishlist:notified',
+  /** Ordem e armas escondidas no filtro do catálogo. */
+  weaponPrefs: 'catalog:weapons:v1',
 } as const;
 
 /** Chaves de versões antigas do cache, apagadas quando o formato muda. */

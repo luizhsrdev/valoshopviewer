@@ -7,10 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
+import { WeaponSorter } from '@/components/weapon-sorter';
 import { WishHeart } from '@/components/wish-heart';
 import { loadContent, type Content } from '@/lib/content';
 import { activeNight } from '@/lib/shop';
 import { openSkin } from '@/lib/skin-detail';
+import { fold } from '@/lib/text';
+import { applyWeaponPrefs, readWeaponPrefs, writeWeaponPrefs, type WeaponPrefs } from '@/lib/weapon-order';
 import { useShop } from '@/providers/shop';
 import { useWishlist } from '@/providers/wishlist';
 import { colors, radius, space, type as typeScale } from '@/theme';
@@ -18,15 +21,6 @@ import { colors, radius, space, type as typeScale } from '@/theme';
 type Row = { uuid: string; name: string; image: string | null; weapon: string; color: string | null; search: string };
 
 const ROW_H = 68;
-
-/** Busca sem diferenciar acentos nem maiúsculas ("vinganca" acha "Vingança"). */
-function fold(text: string) {
-  try {
-    return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  } catch {
-    return text.toLowerCase();
-  }
-}
 
 const MELEE_LABEL = 'Corpo a corpo';
 
@@ -38,8 +32,11 @@ export default function Desejos() {
   const [tab, setTab] = useState<'list' | 'catalog'>(ids.size ? 'list' : 'catalog');
   const [query, setQuery] = useState('');
   const [weapon, setWeapon] = useState<number | null>(null);
+  const [prefs, setPrefs] = useState<WeaponPrefs | null>(null);
+  const [sorting, setSorting] = useState(false);
 
   useEffect(() => {
+    readWeaponPrefs().then(setPrefs);
     loadContent()
       .then(setContent)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Não foi possível carregar o catálogo.'));
@@ -48,6 +45,7 @@ export default function Desejos() {
   // Só skins com raridade: as outras (padrão, passe de batalha) nunca saem na loja.
   const rows = useMemo<(Row & { weaponIndex: number })[]>(() => {
     if (!content) return [];
+    // Ordena pela chave já sem acentos (comparar strings em JS puro é rápido).
     return content.skins
       .filter((s) => s.tierUuid)
       .map((s) => {
@@ -62,7 +60,7 @@ export default function Desejos() {
           search: fold(s.name),
         };
       })
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      .sort((a, b) => (a.search < b.search ? -1 : a.search > b.search ? 1 : 0));
   }, [content]);
 
   const filtered = useMemo(() => {
@@ -78,6 +76,25 @@ export default function Desejos() {
     for (const o of activeNight(shop)?.offers ?? []) if (o.skinUuid) map.set(o.skinUuid, 'No seu mercado noturno');
     return map;
   }, [shop]);
+
+  // Ordem e armas escondidas escolhidas pela pessoa.
+  const weapons = useMemo(() => applyWeaponPrefs(content?.weapons ?? [], prefs), [content, prefs]);
+  const savePrefs = (next: WeaponPrefs | null) => {
+    setPrefs(next);
+    writeWeaponPrefs(next);
+  };
+  const reorder = (visibleIds: string[]) =>
+    savePrefs({ order: [...visibleIds, ...weapons.hidden.map((w) => w.uuid)], hidden: weapons.hidden.map((w) => w.uuid) });
+  const hide = (id: string) => {
+    const hiddenIds = [...weapons.hidden.map((w) => w.uuid), id];
+    savePrefs({ order: [...weapons.visible.map((w) => w.uuid).filter((x) => x !== id), ...hiddenIds], hidden: hiddenIds });
+    if (weapon !== null && content?.weapons[weapon]?.uuid === id) setWeapon(null);
+  };
+  const show = (id: string) => {
+    const hiddenIds = weapons.hidden.map((w) => w.uuid).filter((x) => x !== id);
+    // Volta para o fim da lista visível.
+    savePrefs({ order: [...weapons.visible.map((w) => w.uuid), id, ...hiddenIds], hidden: hiddenIds });
+  };
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -121,33 +138,45 @@ export default function Desejos() {
 
         {tab === 'catalog' ? (
           <>
-            <View style={styles.search}>
-              <Ionicons name="search" size={16} color={colors.ash} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Buscar skin (ex.: Prime, Reaver)"
-                placeholderTextColor={colors.ash}
-                style={styles.input}
-                autoCorrect={false}
-                autoCapitalize="none"
-                returnKeyType="search"
-                accessibilityLabel="Buscar skin pelo nome"
-              />
-              {query ? (
-                <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar busca">
-                  <Ionicons name="close-circle" size={16} color={colors.ash} />
-                </Pressable>
-              ) : null}
+            <View style={styles.searchRow}>
+              <View style={styles.search}>
+                <Ionicons name="search" size={16} color={colors.ash} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Buscar skin (ex.: Prime, Reaver)"
+                  placeholderTextColor={colors.ash}
+                  style={styles.input}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  accessibilityLabel="Buscar skin pelo nome"
+                />
+                {query ? (
+                  <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar busca">
+                    <Ionicons name="close-circle" size={16} color={colors.ash} />
+                  </Pressable>
+                ) : null}
+              </View>
+              {/* Mesmo desenho do campo de busca: altura, borda, raio e fundo. */}
+              <Pressable
+                onPress={() => setSorting(true)}
+                disabled={!content}
+                style={({ pressed }) => [styles.editButton, pressed && { backgroundColor: colors.surfaceElevated }]}
+                accessibilityRole="button"
+                accessibilityLabel="Organizar armas do filtro">
+                <Ionicons name="options-outline" size={18} color={colors.mute} />
+              </Pressable>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               <Chip label="Todas" on={weapon === null} onPress={() => setWeapon(null)} />
-              {content?.weapons.map((w, i) => (
+              {weapons.visible.map((w) => (
                 <Chip
                   key={w.uuid}
                   label={w.category === 'Melee' ? MELEE_LABEL : w.name}
-                  on={weapon === i}
-                  onPress={() => setWeapon(weapon === i ? null : i)}
+                  on={weapon === w.index}
+                  onPress={() => setWeapon(weapon === w.index ? null : w.index)}
+                  onLongPress={() => setSorting(true)}
                 />
               ))}
             </ScrollView>
@@ -206,14 +235,26 @@ export default function Desejos() {
           )}
         />
       )}
+      <WeaponSorter
+        visible={sorting}
+        shown={weapons.visible}
+        hidden={weapons.hidden}
+        onClose={() => setSorting(false)}
+        onReorder={reorder}
+        onHide={hide}
+        onShow={show}
+        onReset={() => savePrefs(null)}
+      />
     </SafeAreaView>
   );
 }
 
-function Chip({ label, on, onPress }: { label: string; on: boolean; onPress(): void }) {
+function Chip({ label, on, onPress, onLongPress }: { label: string; on: boolean; onPress(): void; onLongPress?(): void }) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={450}
       style={[styles.chip, on && styles.chipOn]}
       accessibilityRole="button"
       accessibilityState={{ selected: on }}>
@@ -238,12 +279,24 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 36, borderRadius: radius.sm },
   tabOn: { backgroundColor: colors.surfacePressed },
+  searchRow: { flexDirection: 'row', gap: space.sm },
   search: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.md,
     minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surface,
+  },
+  editButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.hairline,

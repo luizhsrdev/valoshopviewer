@@ -314,6 +314,15 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - **"Minha lista"**: as skins salvas, com "Na sua loja hoje" ou "No seu mercado noturno" em vermelho quando aparecem.
   - **"Catálogo"**: todas as skins com raridade (as padrão e as de passe nunca saem na loja), com busca por nome que ignora acentos e filtro por arma (pistolas → corpo a corpo).
 - O catálogo agora vem de `/v1/weapons` (as mesmas skins, agrupadas por arma); o cache foi para `content:v4`.
+- **Organizar armas do filtro** (`weapon-sorter.tsx`, `weapon-order.ts`):
+  - Abre pelo botão de ajuste **à direita do campo de busca** (mesma altura, borda, raio e fundo do campo), ou segurando qualquer chip de arma.
+  - O painel sobe de baixo, com uma lista que se **reordena arrastando pela alça**: as linhas se movem na thread de UI, as vizinhas deslizam para abrir espaço, e a ordem é salva ao soltar.
+  - **Animação:** arrastando, as linhas vizinhas usam um elástico leve (`DRAG_SPRING`). Ao esconder ou mostrar, um elástico ainda mais contido (`SHIFT_SPRING`), que passa ~2 pt do lugar (~4%) e assenta em ~0,5 s, medido quadro a quadro no emulador. Em saltos de várias posições (restaurar, toques rápidos), o mesmo spring sem passar do lugar (`overshootClamping`): num spring, o quanto a linha passa é proporcional à distância, e era isso que fazia as linhas se sobreporem.
+  - O **olho esconde a arma do filtro**. Ela vai para a seção "Ocultas", de onde volta ao fim da lista.
+  - Tem **"Restaurar padrão"**. O "Todas" fica sempre em primeiro.
+  - Salvo em `catalog:weapons:v1` (UUIDs; armas novas de um patch entram no fim). Se a arma filtrada no momento for escondida, o filtro volta para "Todas".
+  - Testado no emulador: arrastar a Sheriff até o topo, esconder a Classic e ver a fileira atualizada.
+- **Desempenho (bug corrigido):** a tela travava a thread do JavaScript por minutos, e esse era o "reloading infinito". A causa eram o `localeCompare(…, 'pt-BR')` e o `normalize('NFD')` ao ordenar e preparar a busca das ~1.400 skins: no Android, o Hermes implementa os dois chamando o Java, e o `localeCompare` com idioma recria o comparador a cada chamada. Trocado por funções em JavaScript puro (`src/lib/text.ts`: `fold` e `compareText`). **Regra: não usar `localeCompare` com idioma nem `normalize` em listas grandes.**
 - Os ícones vêm do `@expo/vector-icons` (Ionicons), que é JavaScript mais fontes e não exige build novo.
 
 **Avisos** (`notifications.ts`):
@@ -339,6 +348,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - Nunca versionar `.env`, keystores, `credentials.json` ou chaves de service account. Segredos ficam nas variáveis de ambiente do EAS (`eas env:create`).
 - Antes de concluir uma tarefa: `npm run lint` e `npm run typecheck`.
 - Dados apenas locais. Nada sai do aparelho sem decisão explícita.
+- Não usar `localeCompare(…, idioma)` nem `String.normalize()` em listas grandes: no Android (Hermes) passam pelo Java e travam o app. Usar `src/lib/text.ts`.
 
 ---
 

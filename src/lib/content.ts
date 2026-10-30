@@ -6,6 +6,7 @@
 import { rarityHex } from '@/theme';
 
 import { keys, legacyKeys, readJson, remove, writeJson } from './storage';
+import { compareText } from './text';
 
 const API = 'https://valorant-api.com/v1';
 const LANG = 'language=pt-BR';
@@ -96,7 +97,7 @@ async function download(version: string, riotClientVersion: string): Promise<Con
     return i === -1 ? order.length : i;
   };
   const sortedWeapons = [...weaponsRes.data].sort(
-    (a, b) => rank(a.category) - rank(b.category) || a.displayName.localeCompare(b.displayName, 'pt-BR'),
+    (a, b) => rank(a.category) - rank(b.category) || compareText(a.displayName, b.displayName),
   );
 
   // Compacto de propósito: o AsyncStorage do Android tem limite por item.
