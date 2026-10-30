@@ -5,6 +5,7 @@
  */
 import { loadContent, type Content } from './content';
 import { ITEM_TYPE } from './riot/constants';
+import { fold } from './text';
 import type { FeaturedBundle, NightOffer, Shop, SkinOffer } from './shop';
 import { keys, readJson, writeJson } from './storage';
 
@@ -72,23 +73,31 @@ export function buildDemoShop(content: Content, state: DemoState, now = Date.now
   }
   const rankOf = (tierUuid: string | null) => (tierUuid ? (content.tiers[tierUuid]?.rank ?? 2) : 2);
 
-  /** Skins do pacote: as que levam o nome dele (ex.: "Phantom Vingança de Gaia"); senão, 4 sorteadas. */
+  /**
+   * Skins do pacote: as que têm todas as palavras do nome dele, como palavras
+   * inteiras ("VCT x VIT" acha "Classic VCT x VIT", mas não "Classic VCT26 x
+   * VIT"; "Criostase" acha "Vandal Criostase"…). No máximo 5, como um pacote real.
+   */
+  const words = (text: string) => fold(text).match(/[a-z0-9.]+/g) ?? [];
+  const STOP = new Set(['x', 'de', 'da', 'do', 'das', 'dos', 'e', 'the', 'of']);
+  const skinWords = content.skins.map((skin) => new Set(words(skin.name)));
   const bundleSkins = (name: string) => {
-    const needle = name.toLowerCase();
-    const matching = content.skins
+    const need = words(name).filter((w) => !STOP.has(w));
+    if (!need.length) return [];
+    return content.skins
       .map((skin, index) => ({ skin, index }))
-      .filter(({ skin }) => skin.image && skin.tierUuid && needle.length >= 3 && skin.name.toLowerCase().includes(needle));
-    if (matching.length >= 2) return matching.slice(0, 5);
-    return [0, 1, 2, 3].map(() => {
-      const skin = pick(withImage);
-      return { skin, index: content.skins.indexOf(skin) };
-    });
+      .filter(({ skin, index }) => skin.image && skin.tierUuid && need.every((w) => skinWords[index]!.has(w)))
+      .slice(0, 5);
   };
 
-  const bundleEntries = Object.entries(content.bundles).filter(([, b]) => b.image);
+  // Só pacotes que têm skins correspondentes (nunca skins aleatórias).
+  const bundleEntries = Object.entries(content.bundles)
+    .filter(([, b]) => b.image)
+    .map(([id, b]) => ({ id, b, skins: bundleSkins(b.name) }))
+    .filter((e) => e.skins.length > 0);
   const bundles: FeaturedBundle[] = [0, 1].map((i) => {
-    const [id, b] = pick(bundleEntries);
-    const items = bundleSkins(b.name).map(({ skin, index }) => {
+    const { id, b, skins } = pick(bundleEntries);
+    const items = skins.map(({ skin, index }) => {
       const basePrice = PRICE_BY_RANK[rankOf(skin.tierUuid)]!;
       return {
         typeId: ITEM_TYPE.skinLevel,

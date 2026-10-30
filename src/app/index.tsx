@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +58,16 @@ export default function Loja() {
           </View>
           <View style={styles.topRight}>
             <View style={styles.icons}>
+              {night ? (
+                <Pressable
+                  onPress={() => router.push('/mercado')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.iconButton, pressed && { backgroundColor: colors.surfaceElevated }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mercado noturno">
+                  <Image source={require('@/assets/images/night-market.png')} style={styles.nightIcon} tintColor={colors.accent} />
+                </Pressable>
+              ) : null}
               <HeaderIcon
                 name={wishlist.size ? 'heart' : 'heart-outline'}
                 label={`Lista de desejos, ${wishlist.size} skins`}
@@ -181,6 +192,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
   topRight: { alignItems: 'flex-end', gap: space.sm },
   icons: { flexDirection: 'row', gap: space.xs, marginRight: -space.sm },
+  nightIcon: { width: 19, height: 19 },
   iconButton: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   staleBar: {
     flexDirection: 'row',

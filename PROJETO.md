@@ -321,7 +321,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - **"Também vem no pacote"**: chaveiros, cards de jogador, sprays e títulos, com imagem e nome em pt-BR, e "Incluso" quando o item vem de graça.
 - **Os itens vêm da própria loja da Riot** (`FeaturedBundle.Bundles[].Items`: `ItemTypeID` + `ItemID` + preços). Agora ficam salvos no modelo (`FeaturedBundle.items`); o cache foi para `shop:v3`. Os nomes e as imagens são resolvidos na valorant-api.com (`bundle-detail.ts`). Os chaveiros usam o nome do chaveiro "pai", porque o nível tem um nome interno.
 - As **cápsulas do VCT** são pacotes, então também abrem por aqui. As skins do VCT no catálogo são normais (todas Exclusive, com imagem).
-- **Demo:** cada pacote falso recebe as skins reais que levam o nome dele (154 de 329 pacotes acham pelo nome); senão, 4 skins sorteadas.
+- **Demo:** cada pacote falso recebe as skins reais que têm **todas as palavras do nome do pacote, como palavras inteiras** ("VCT x VIT" acha só "Classic VCT x VIT", não as de VCT25/VCT26), até 5. A demo **só sorteia pacotes com correspondência** (276 de 329); antes, quando não achava, sorteava 4 skins aleatórias, o que aparecia nas cápsulas do VCT.
 
 ## 6.11 Lista de desejos e notificações
 
