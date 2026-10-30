@@ -250,13 +250,14 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Nunca** aparece na tela da loja. Na loja fica só o banner "Mercado noturno disponível" com o tempo restante, que abre a rota `/mercado`.
 - **Notificação:** a tarefa em segundo plano (a cada ~30 min) e o refresh em primeiro plano detectam o `BonusStore`. Cada mercado é avisado uma vez, identificado pelos IDs das ofertas. Em primeiro plano não notifica, porque o banner já aparece. Ao tocar, `data.url = "/mercado"` abre a tela direto, inclusive com o app fechado.
 - **Cartas:** são 6. O verso é uma **grade de losangos** (~80 por carta) na cor da raridade, escurecida, com linhas finas entre eles. Por cima, enfeites próprios: dois losangos concêntricos e "TOQUE PARA REVELAR". Tudo desenhado no app, sem arte da Riot. Como no jogo, a cor da raridade já aparece antes de revelar.
-- **Revelação (a pedido, fiel ao jogo; substituiu o flip 3D)**, em `card-back.tsx`. Um único relógio por carta (0 → 1 em 1,5 s) move todos os losangos na thread de UI:
+- **Revelação (a pedido, fiel ao jogo; substituiu o flip 3D)**, em `card-back.tsx`. Um único relógio por carta (0 → 1 em 1,85 s) move todos os losangos na thread de UI:
   1. **0–160 ms:** os enfeites somem.
-  2. **0–600 ms:** cada losango troca da cor escura para a cor da raridade, do centro para fora. O atraso combina a distância em losango com a preferência pelas diagonais, então primeiro acende um losango e depois um "X". A borda acende junto.
-  3. **~420–880 ms:** clarão branco quando a carta inteira acende. O pico vai de 6% (Select) a 34% (Ultra).
-  4. **700–1500 ms:** os losangos somem e encolhem do centro para os cantos, revelando a skin. No fim sobram as faixas de cima e de baixo.
-  5. **Conteúdo:** a skin aparece aos 700 ms, o selo de desconto (com mola) aos 1150 ms e o preço final aos 1250 ms.
-- Em repouso, os losangos são Views estáticas, sem custo. Os animados só são montados no toque e são desmontados quando a capa termina.
+  2. **0–420 ms, o X:** só os losangos das diagonais (|Δi| = |Δj| a partir do losango central) acendem, do centro até as pontas. Os outros apenas sobem um tom quando o X passa por eles.
+  3. **~420–520 ms:** pausa curta com **só o X em destaque**, como no jogo.
+  4. **520–1000 ms:** a cor se espalha do X para os demais, conforme a distância de cada losango até o X. A borda acende junto.
+  5. **~840–1240 ms:** clarão branco quando a carta inteira acende. O pico vai de 6% (Select) a 34% (Ultra).
+  6. **1050–1850 ms:** os losangos somem e encolhem do centro para os cantos. **A skin já está pronta embaixo da capa** (que é opaca) e aparece no primeiro losango que some, com um leve zoom de entrada. O selo de desconto entra aos 1500 ms e o preço final aos 1600 ms.
+- **Fluidez:** montar os ~80 losangos animados no toque causava um engasgo. Agora eles são preparados 350 ms depois que a tela abre, uma carta a cada 90 ms. O toque só dispara o relógio. A capa é desmontada quando termina.
 - A carta revelada fica com borda (60%) e fundo (10%) na cor da raridade, sem o nome da raridade. Tocar nela abre os detalhes da skin.
 - **Persistência:** os `BonusOfferID` revelados ficam no AsyncStorage com o `endsAt` do mercado e expiram com ele. Ao reabrir, as cartas já reveladas aparecem sem animação.
 - **"Remover animações"** do Android (`useReducedMotion`): revela na hora, sem losangos nem clarão, e os skeletons e o banner param de pulsar.

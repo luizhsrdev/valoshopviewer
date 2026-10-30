@@ -20,7 +20,16 @@ import { Text } from '../text';
 import { CardCover, CONTENT_AT, REVEAL } from './card-back';
 
 /** Linha do tempo do conteúdo (ms), alinhada com a capa que se desfaz. */
-const T = { contentAt: CONTENT_AT, badgeAt: 1150, finalAt: 1250 };
+const T = { contentAt: CONTENT_AT, badgeAt: CONTENT_AT + 450, finalAt: CONTENT_AT + 550 };
+
+/**
+ * Os losangos animados são montados logo depois que a tela abre, uma carta
+ * por vez (montar ~80 no toque causava um engasgo). No toque, só o relógio anda.
+ */
+const ARM_AFTER = 350;
+const ARM_STAGGER = 90;
+
+type Phase = 'cover' | 'playing' | 'done';
 
 type Props = {
   offer: NightOffer;
@@ -37,37 +46,53 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
   const color = offer.tier?.color ?? null;
   const rank = offer.tier?.rank ?? 0;
   const [size, setSize] = useState({ width: 0, height: 0 });
-  // Capa visível até revelar e, depois, até a animação terminar.
-  const [coverGone, setCoverGone] = useState(revealed);
-  const [animating, setAnimating] = useState(false);
+  // cover: capa parada · playing: revelando · done: só a frente.
+  const [phase, setPhase] = useState<Phase>(revealed ? 'done' : 'cover');
+  const [armed, setArmed] = useState(false);
 
   const clock = useSharedValue(0);
   const content = useSharedValue(revealed ? 1 : 0);
   const badge = useSharedValue(revealed ? 1 : 0);
   const final = useSharedValue(revealed ? 1 : 0);
 
+  // Prepara os losangos animados com a carta ainda parada.
   useEffect(() => {
-    if (!revealed || coverGone || animating) return;
+    if (revealed) return;
+    const id = setTimeout(() => setArmed(true), ARM_AFTER + index * ARM_STAGGER);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!revealed || phase !== 'cover') return;
     if (instant) {
       content.set(1);
       badge.set(1);
       final.set(1);
-      const id = setTimeout(() => setCoverGone(true), 0);
+      const id = setTimeout(() => setPhase('done'), 0);
       return () => clearTimeout(id);
     }
-    const start = setTimeout(() => setAnimating(true), 0);
+    if (!armed) {
+      // Tocou antes de preparar: prepara agora e começa no próximo render.
+      const id = setTimeout(() => setArmed(true), 0);
+      return () => clearTimeout(id);
+    }
     clock.set(withTiming(1, { duration: REVEAL.total, easing: Easing.linear }));
-    content.set(withDelay(T.contentAt, withTiming(1, { duration: 360, easing: Easing.out(Easing.cubic) })));
+    content.set(withDelay(T.contentAt, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) })));
     badge.set(withDelay(T.badgeAt, withSpring(1, { damping: 9, stiffness: 240, mass: 0.7 })));
     final.set(withDelay(T.finalAt, withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) })));
-    // Libera os losangos animados quando a capa termina de se desfazer.
-    const end = setTimeout(() => setCoverGone(true), REVEAL.total + 50);
-    return () => {
-      clearTimeout(start);
-      clearTimeout(end);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revealed, instant]);
+    const id = setTimeout(() => setPhase('playing'), 0);
+    return () => clearTimeout(id);
+  }, [revealed, instant, armed, phase, clock, content, badge, final]);
+
+  // Desmonta a capa quando ela termina de se desfazer.
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    const id = setTimeout(() => setPhase('done'), REVEAL.total + 50);
+    return () => clearTimeout(id);
+  }, [phase]);
+
+  const coverGone = phase === 'done';
 
   const a11yRevealed = `${offer.name}. De ${formatNumber(offer.basePrice)} por ${formatNumber(offer.finalPrice)} VP, ${offer.discountPercent}% de desconto. Toque para ver os detalhes.`;
 
@@ -97,7 +122,7 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
             rank={rank}
             width={size.width}
             height={size.height}
-            clock={animating ? clock : null}
+            clock={armed ? clock : null}
           />
         </Pressable>
       ) : null}
@@ -120,9 +145,10 @@ function Front({
 }) {
   const tint = color ?? colors.mute;
 
+  // A capa é opaca, então a skin já fica visível por baixo dela: aparece no
+  // primeiro losango que some. `content` só dá um leve zoom de entrada.
   const contentStyle = useAnimatedStyle(() => ({
-    opacity: content.get(),
-    transform: [{ scale: interpolate(content.get(), [0, 1], [0.94, 1]) }],
+    transform: [{ scale: interpolate(content.get(), [0, 1], [0.92, 1]) }],
   }));
   const badgeStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, badge.get() * 1.5),
