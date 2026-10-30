@@ -334,12 +334,35 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Tarefa em segundo plano** (`background.ts`, a cada ~30 min, quando o Android deixar): só busca a loja depois da troca, ou se o cache tiver mais de 3 h (para pegar o mercado noturno). Renova o token pelo `ssid` e avisa.
 - **Reserva:** avisos locais "Sua loja mudou · Quatro skins novas" ficam agendados para as **próximas 7 trocas** (00:00 UTC + 1 min, um identificador por dia). Se a tarefa chega antes, cancela a reserva daquele dia e manda os nomes; se a reserva já tocou, a tarefa não repete. A lista de reservas agendadas (`daily:reserved`) evita confundir "já tocou" com "nunca foi agendada".
 - **Configurações** (`/configuracoes`, ícone de engrenagem):
-  - liga e desliga cada tipo de aviso (`settings:notifications:v1`);
+  - liga e desliga cada tipo de aviso (`settings:notifications:v1`), com um **interruptor próprio** (`toggle.tsx`): a bolinha desliza com mola suave sem passar do lugar (~180 ms) e o trilho troca de cor gradualmente (cinza → `#FF4655`), tudo no reanimated. Substituiu o `Switch` nativo, que dava tranco no Android;
   - mostra o aviso "o aviso pode chegar alguns minutos depois";
   - pede a permissão se ela foi negada;
   - avisa se o Android restringir o app em segundo plano;
   - tem o botão **Sair**, que saiu do topo da Loja. A lista de desejos sobrevive ao Sair.
 - **Demo / painel de desenvolvimento:** "Avisos da loja em 5 s" (zera o que já foi avisado e manda loja, desejos e mercado) e "Mercado noturno em 5 s". Na demo, a tarefa em segundo plano roda o mesmo fluxo de avisos com a loja falsa.
+
+## 6.12 Desempenho (medições no emulador, development build, 2026-10-30)
+
+Os scripts de medição (`measure.sh`, `scroll.sh`, `reveal.sh`) ficaram no rascunho da sessão: CPU por thread via `/proc` e quadros via `dumpsys gfxinfo`.
+
+| Cenário | Antes | Depois |
+|---|---|---|
+| Loja parada, 10 s: quadros desenhados | 768 (~77/s, sem parar) | **11** (só a contagem) |
+| Loja parada: CPU da thread principal / renderização | 41% / 31% | **2,8% / <1%** |
+| Lista de desejos parada (loja escondida na pilha) | 25% de CPU, 0 quadros | **3,6%** |
+| Rolar a loja: mediana por quadro | 17–28 ms | igual (o `boxShadow` dos cards não faz diferença; foi mantido) |
+| **Revelar uma carta do mercado** | **27 quadros em 1,5 s, 117–150 ms cada** | pendente (ver abaixo) |
+
+**O que foi corrigido:**
+- O **pulso infinito do ponto do banner do mercado** forçava a tela inteira a ser redesenhada ~60 vezes por segundo, mesmo parada ou escondida embaixo de outra tela. Agora pulsa 3 vezes ao aparecer e só com a loja em foco.
+- **Um relógio só** (`countdown.tsx`) para todas as contagens, alinhado à virada do segundo. Ele pausa com o app em segundo plano e nas telas fora de foco, e usa um tique por minuto quando falta mais de 1 dia.
+
+**Revelação das cartas (o gargalo real):** o custo é proporcional ao número de Views animadas.
+- 83 losangos (2 camadas cada): ~125 ms por quadro;
+- 40 losangos: 81 ms;
+- 40 losangos sem borda: 65 ms.
+
+Mesmo reduzindo, fica muito longe dos 16 ms de 60 fps. **Solução proposta:** desenhar a capa num único canvas com `@shopify/react-native-skia`, guiado pelo mesmo relógio do reanimated na thread de UI. Isso exige um development build novo e um APK novo.
 
 ## 7. Regras do projeto
 

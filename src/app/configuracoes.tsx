@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Text } from '@/components/text';
+import { Toggle } from '@/components/toggle';
 import { backgroundStatus } from '@/lib/background';
 import { cancelDailyReserve, notificationsAllowed, scheduleDailyReserve, setupNotifications } from '@/lib/notifications';
 import { DEFAULT_SETTINGS, readSettings, writeSettings, type NotifySettings } from '@/lib/settings';
@@ -102,13 +103,7 @@ export default function Configuracoes() {
                     {o.description}
                   </Text>
                 </View>
-                <Switch
-                  value={settings[o.key]}
-                  onValueChange={(v) => update(o.key, v)}
-                  trackColor={{ false: colors.surfacePressed, true: colors.accent }}
-                  thumbColor={colors.ink}
-                  accessibilityLabel={o.title}
-                />
+                <Toggle value={settings[o.key]} onValueChange={(v) => update(o.key, v)} accessibilityLabel={o.title} />
               </View>
             ))}
           </View>

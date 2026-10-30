@@ -207,7 +207,8 @@ const styles = StyleSheet.create({
   priceLine: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   finalPrice: { fontSize: 15, lineHeight: 19 },
   strike: { textDecorationLine: 'line-through', fontSize: 11 },
-  nameBox: { position: 'absolute', left: space.xl, right: space.xl, bottom: space.md, alignItems: 'center' },
+  // Margens iguais dos dois lados, largas o bastante para não encostar no coração (29 pt + respiro).
+  nameBox: { position: 'absolute', left: 38, right: 38, bottom: space.md, alignItems: 'center' },
   heart: { position: 'absolute', right: space.xs, bottom: space.xs },
   name: { textAlign: 'center', letterSpacing: 0.6, fontSize: 12, lineHeight: 16 },
 });
