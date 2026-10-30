@@ -8,14 +8,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const keys = {
   consent: 'consent',
   content: 'content:v3',
-  shop: 'shop:v2',
+  shop: 'shop:v3',
   nightRevealed: 'night:revealed',
   nightNotified: 'night:notified',
   demo: 'dev:demo',
 } as const;
 
 /** Chaves de versões antigas do cache, apagadas quando o formato muda. */
-export const legacyKeys = ['content:v1', 'content:v2', 'shop:v1'];
+export const legacyKeys = ['content:v1', 'content:v2', 'shop:v1', 'shop:v2'];
 
 export async function readJson<T>(key: string): Promise<T | null> {
   try {

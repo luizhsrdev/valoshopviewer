@@ -294,7 +294,15 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Tela cheia:** gira o player em 90° num modal, sem barra de status e continuando do mesmo ponto. O app é travado em retrato, e girar a tela de verdade exigiria o `expo-screen-orientation`, que é nativo. O botão voltar do Android sai da tela cheia.
 - Os ícones são desenhados com Views (`player-icons.tsx`), sem fonte de ícones nem SVG, para não exigir build novo.
 - Com "Remover animações" ativo, os controles aparecem e somem sem fade.
-- Os pacotes ainda não abrem detalhes, porque os itens do pacote não são guardados no modelo.
+## 6.10 Detalhes do pacote
+
+- Tocar no card do pacote (no carrossel da loja) abre `/pacote/[id]`, que mostra:
+  - a imagem, o nome, o preço (com o original riscado), o tempo restante;
+  - **"Skins · N"** nos mesmos cards da loja diária, cada um abrindo os detalhes da skin;
+  - **"Também vem no pacote"**: chaveiros, cards de jogador, sprays e títulos, com imagem e nome em pt-BR, e "Incluso" quando o item vem de graça.
+- **Os itens vêm da própria loja da Riot** (`FeaturedBundle.Bundles[].Items`: `ItemTypeID` + `ItemID` + preços). Agora ficam salvos no modelo (`FeaturedBundle.items`); o cache foi para `shop:v3`. Os nomes e as imagens são resolvidos na valorant-api.com (`bundle-detail.ts`). Os chaveiros usam o nome do chaveiro "pai", porque o nível tem um nome interno.
+- As **cápsulas do VCT** são pacotes, então também abrem por aqui. As skins do VCT no catálogo são normais (todas Exclusive, com imagem).
+- **Demo:** cada pacote falso recebe as skins reais que levam o nome dele (154 de 329 pacotes acham pelo nome); senão, 4 skins sorteadas.
 
 ## 7. Regras do projeto
 
@@ -362,7 +370,6 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - Botão "Revelar todas" no mercado.
 - Trocar a superfície da WebView pelo `expo-video` (exige build novo), mantendo os controles próprios: decodificação nativa, PiP e cache de vídeo. Junto, o `expo-screen-orientation` para uma tela cheia com rotação de verdade.
 - Economia de dados nos vídeos: avisar o tamanho antes de tocar no 4G/5G, ou uma opção "só tocar vídeos no Wi-Fi" (os vídeos têm de 8 a 46 MB).
-- Detalhes do pacote (lista das skins do pacote, cada uma abrindo a tela de detalhes).
 - Toque leve (haptics) na revelação, mais forte para Exclusive e Ultra.
 - Aviso de "otimização de bateria" para a tarefa em segundo plano em celulares agressivos (Xiaomi, Samsung).
 - Ícones e splash próprios, separando dev e release (ex.: ícone com selo "DEV" no `app.config.ts`).

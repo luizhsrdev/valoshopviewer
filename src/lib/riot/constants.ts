@@ -36,8 +36,15 @@ export const CURRENCY = {
   kc: '85ca954a-41f2-ce94-9b45-8ca3dd39a00d',
 } as const;
 
-/** Tipo de item "nível de skin" (as ofertas da loja apontam para o nível 1). */
-export const ITEM_TYPE_SKIN_LEVEL = 'e7c63390-eda7-46e0-bb7a-a6abdacd2433';
+/** Tipos de item da loja (ItemTypeID). As ofertas de skin apontam para o nível 1. */
+export const ITEM_TYPE = {
+  skinLevel: 'e7c63390-eda7-46e0-bb7a-a6abdacd2433',
+  buddyLevel: 'dd3bf334-87f3-40bd-b043-682a57a8dc3a',
+  playerCard: '3f296c07-64c3-494c-923b-fe692a4fa1bd',
+  spray: 'd5f120f8-ff8c-4aac-92ea-f2b5acbe9475',
+  playerTitle: 'de7caa6b-adf7-4588-bbd1-143831e786c6',
+} as const;
+export const ITEM_TYPE_SKIN_LEVEL = ITEM_TYPE.skinLevel;
 
 /** riot-geo devolve a afinidade; BR e LATAM jogam no shard "na". */
 export function shardFromAffinity(live: string): string {

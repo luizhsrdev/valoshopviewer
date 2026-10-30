@@ -4,6 +4,7 @@
  * Em builds de produção (`__DEV__ === false`) tudo aqui fica desligado.
  */
 import { loadContent, type Content } from './content';
+import { ITEM_TYPE } from './riot/constants';
 import type { FeaturedBundle, NightOffer, Shop, SkinOffer } from './shop';
 import { keys, readJson, writeJson } from './storage';
 
@@ -64,16 +65,48 @@ export function buildDemoShop(content: Content, state: DemoState, now = Date.now
     return { skin, tier };
   };
 
+  // Primeiro nível de cada skin (é o ItemID que a loja usa).
+  const firstLevel = new Map<number, string>();
+  for (const [level, index] of Object.entries(content.levelToSkin)) {
+    if (!firstLevel.has(index)) firstLevel.set(index, level);
+  }
+  const rankOf = (tierUuid: string | null) => (tierUuid ? (content.tiers[tierUuid]?.rank ?? 2) : 2);
+
+  /** Skins do pacote: as que levam o nome dele (ex.: "Phantom Vingança de Gaia"); senão, 4 sorteadas. */
+  const bundleSkins = (name: string) => {
+    const needle = name.toLowerCase();
+    const matching = content.skins
+      .map((skin, index) => ({ skin, index }))
+      .filter(({ skin }) => skin.image && skin.tierUuid && needle.length >= 3 && skin.name.toLowerCase().includes(needle));
+    if (matching.length >= 2) return matching.slice(0, 5);
+    return [0, 1, 2, 3].map(() => {
+      const skin = pick(withImage);
+      return { skin, index: content.skins.indexOf(skin) };
+    });
+  };
+
   const bundleEntries = Object.entries(content.bundles).filter(([, b]) => b.image);
   const bundles: FeaturedBundle[] = [0, 1].map((i) => {
     const [id, b] = pick(bundleEntries);
+    const items = bundleSkins(b.name).map(({ skin, index }) => {
+      const basePrice = PRICE_BY_RANK[rankOf(skin.tierUuid)]!;
+      return {
+        typeId: ITEM_TYPE.skinLevel,
+        itemId: firstLevel.get(index) ?? skin.uuid,
+        price: Math.round((basePrice * 0.8) / 5) * 5,
+        basePrice,
+      };
+    });
+    const price = items.reduce((sum, it) => sum + it.price, 0);
+    const basePrice = items.reduce((sum, it) => sum + it.basePrice, 0);
     return {
       id: `demo-bundle-${state.seed}-${i}-${id}`,
       name: b.name,
       image: b.image,
-      price: i === 0 ? 7100 : 5350,
-      basePrice: i === 0 ? 9500 : null,
+      price,
+      basePrice: basePrice > price ? basePrice : null,
       endsAt: state.createdAt + (i === 0 ? 5 : 2) * DAY + 6 * 3_600_000,
+      items,
     };
   });
 

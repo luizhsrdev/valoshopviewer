@@ -54,6 +54,7 @@ function Routes({ ready }: { ready: boolean }) {
       <Stack.Protected guard={status === 'signedIn'}>
         <Stack.Screen name="index" />
         <Stack.Screen name="mercado" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="pacote/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="skin/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack.Protected>
       <Stack.Protected guard={status === 'consent'}>

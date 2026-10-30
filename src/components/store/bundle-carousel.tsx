@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedScrollHandler,
@@ -67,10 +68,11 @@ function Dot({ index, progress }: { index: number; progress: SharedValue<number>
 
 function BundleCard({ bundle, width }: { bundle: FeaturedBundle; width: number }) {
   return (
-    <View
-      style={[styles.card, { width }]}
-      accessible
-      accessibilityLabel={`Pacote ${bundle.name}, ${formatNumber(bundle.price)} VP`}>
+    <Pressable
+      onPress={() => router.push({ pathname: '/pacote/[id]', params: { id: bundle.id } })}
+      style={({ pressed }) => [styles.card, { width }, pressed && { borderColor: colors.hairlineStrong }]}
+      accessibilityRole="button"
+      accessibilityLabel={`Pacote ${bundle.name}, ${formatNumber(bundle.price)} VP. Toque para ver os itens.`}>
       <View style={styles.imageBox}>
         <Image
           source={bundle.image ?? undefined}
@@ -111,7 +113,7 @@ function BundleCard({ bundle, width }: { bundle: FeaturedBundle; width: number }
           </View>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

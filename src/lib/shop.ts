@@ -20,6 +20,14 @@ export type SkinOffer = {
   tier: Tier | null;
 };
 
+/** Item de um pacote, como vem da loja (nome e imagem resolvidos na tela do pacote). */
+export type BundleItem = {
+  typeId: string;
+  itemId: string;
+  price: number;
+  basePrice: number;
+};
+
 export type FeaturedBundle = {
   id: string;
   name: string;
@@ -27,6 +35,7 @@ export type FeaturedBundle = {
   price: number;
   basePrice: number | null;
   endsAt: number;
+  items: BundleItem[];
 };
 
 export type NightOffer = {
@@ -74,6 +83,12 @@ export function buildShop(
       price,
       basePrice: basePrice > price ? basePrice : null,
       endsAt: at(b.DurationRemainingInSeconds ?? store.FeaturedBundle.BundleRemainingDurationInSeconds),
+      items: b.Items.map((i) => ({
+        typeId: i.Item.ItemTypeID,
+        itemId: i.Item.ItemID,
+        price: i.DiscountedPrice ?? i.BasePrice ?? 0,
+        basePrice: i.BasePrice ?? 0,
+      })),
     };
   });
 
