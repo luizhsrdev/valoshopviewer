@@ -38,9 +38,6 @@ export const REVEAL = {
   flashAt: 560,
 } as const;
 
-/** Momento (ms) em que os primeiros losangos somem e a skin aparece pelos buracos. */
-export const CONTENT_AT = REVEAL.fadeStart;
-
 /** Opacidade da camada clara quando o X passa (o "tom acima" antes de acender). */
 const MID = 0.25;
 

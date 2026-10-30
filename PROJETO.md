@@ -256,7 +256,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   1. **0–140 ms:** os enfeites somem.
   2. **0–360 ms, o X sai na frente:** os losangos das diagonais (|Δi| = |Δj| a partir do central) acendem do centro às pontas. **Os vizinhos não esperam o X terminar.** Cada um sobe um tom quando o X passa pelo seu anel e acende logo depois (70 ms + 70 ms por losango de distância do X). Aos ~300 ms, o X chega às bordas com o miolo já aceso, como no jogo. Tudo aceso por volta de 670 ms. A borda acende junto.
   3. **~560–920 ms:** clarão branco quando a carta inteira acende. O pico vai de 6% (Select) a 34% (Ultra).
-  4. **740–1450 ms:** os losangos somem e encolhem do centro para os cantos. A capa **não tem fundo próprio** (os losangos se sobrepõem 6% e cobrem tudo), então a skin, já pronta por baixo, aparece no primeiro losango que some. O selo de desconto entra aos ~1190 ms e o preço final aos ~1290 ms.
+  4. **740–1450 ms:** os losangos somem e encolhem do centro para os cantos. A capa **não tem fundo próprio** (os losangos se sobrepõem 6% e cobrem tudo), então a skin, já pronta por baixo, aparece no primeiro losango que some. **Nada por baixo da capa se anima**: arma, desconto, preços e nome ficam parados, e a capa é a única animação (a pedido).
 - **Fluidez:**
   - Os losangos animados são preparados 350 ms depois que a tela abre, uma carta a cada 90 ms. O toque só dispara o relógio.
   - Cada losango é uma base fixa mais uma camada clara por cima, e só se animam **opacidade e escala**. A cor não é mais interpolada a cada quadro, o que custava caro com ~80 losangos.
@@ -265,7 +265,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - A dica "Toque nas cartas para revelar · 2 de 6" fica no cabeçalho, no lugar do contador, e não mais em cada carta.
 - **Carta revelada, no layout do jogo:**
   - Fundo em degradê na cor da raridade, com dois anéis sutis.
-  - **Arma inclinada a 55°** (cano para cima, à esquerda), **no centro da carta**, onde a capa abre o buraco, e o maior possível sem encostar no texto.
+  - **Arma na horizontal** (86% da largura), **no centro da carta**, onde a capa abre o buraco. Uma versão inclinada a 55°, como no jogo, foi testada e descartada a pedido.
   - **Desconto em vermelho** (`#FF4655`) no canto superior esquerdo, com a ponta cortada em diagonal.
   - **Preço final e preço original riscado** no canto superior direito ("VP" em texto, sem o ícone oficial).
   - **Nome em caixa-alta, centralizado embaixo**, sem a barra escura.
@@ -289,6 +289,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - botão de som;
   - "carregando" e "não foi possível tocar · Tentar de novo";
   - controles que somem após 2,5 s tocando e voltam ao toque.
+- **Qualidade dos vídeos (medida em 2026-10-30, amostra de 6 dos 2.745 do catálogo):** são os arquivos originais da Riot, servidos por `valorant.dyn.riotcdn.net` e tocados sem recompressão. Variam entre **1920×1080 e 1280×720**, ~60 fps (alguns ~47), de 15 a 37 s, **4 a 10 Mbps, ou seja, 8 a 46 MB por vídeo**. Isso pesa no plano de dados móveis (ver ideias futuras).
 - **Tela cheia:** gira o player em 90° num modal, sem barra de status e continuando do mesmo ponto. O app é travado em retrato, e girar a tela de verdade exigiria o `expo-screen-orientation`, que é nativo. O botão voltar do Android sai da tela cheia.
 - Os ícones são desenhados com Views (`player-icons.tsx`), sem fonte de ícones nem SVG, para não exigir build novo.
 - Com "Remover animações" ativo, os controles aparecem e somem sem fade.
@@ -342,6 +343,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **X totalmente formado antes dos demais (com pausa)**: lento demais. Agora os vizinhos começam logo atrás do X.
 - **Interpolar a cor de cada losango a cada quadro**: causava engasgos. Trocado por uma camada clara com opacidade.
 - **"TOQUE PARA REVELAR" em cada carta**: movido para o cabeçalho.
+- **Animações no conteúdo da carta** (zoom da arma, desconto deslizando com mola, preço subindo): removidas a pedido. Só a capa anima.
 - **Controles padrão do `<video>` da WebView**: descartados, porque destoavam do app. Trocados por controles próprios.
 - **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
 - **Mercado noturno na mesma tela da loja**: proibido por regra do produto. Só o banner.
@@ -356,6 +358,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - Notificação opcional na troca da loja diária (21:00 de Brasília).
 - Botão "Revelar todas" no mercado.
 - Trocar a superfície da WebView pelo `expo-video` (exige build novo), mantendo os controles próprios: decodificação nativa, PiP e cache de vídeo. Junto, o `expo-screen-orientation` para uma tela cheia com rotação de verdade.
+- Economia de dados nos vídeos: avisar o tamanho antes de tocar no 4G/5G, ou uma opção "só tocar vídeos no Wi-Fi" (os vídeos têm de 8 a 46 MB).
 - Detalhes do pacote (lista das skins do pacote, cada uma abrindo a tela de detalhes).
 - Toque leve (haptics) na revelação, mais forte para Exclusive e Ultra.
 - Aviso de "otimização de bateria" para a tarefa em segundo plano em celulares agressivos (Xiaomi, Samsung).

@@ -2,26 +2,14 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated';
+import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { formatNumber } from '@/lib/format';
 import type { NightOffer } from '@/lib/shop';
 import { colors, radius, rarityFallback, space, withAlpha } from '@/theme';
 
 import { Text } from '../text';
-import { CardCover, CONTENT_AT, REVEAL } from './card-back';
-
-/** Linha do tempo do conteúdo (ms), alinhada com a capa que se desfaz. */
-const T = { contentAt: CONTENT_AT, badgeAt: CONTENT_AT + 450, finalAt: CONTENT_AT + 550 };
+import { CardCover, REVEAL } from './card-back';
 
 /**
  * Os losangos animados são montados logo depois que a tela abre, uma carta
@@ -52,9 +40,6 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
   const [armed, setArmed] = useState(false);
 
   const clock = useSharedValue(0);
-  const content = useSharedValue(revealed ? 1 : 0);
-  const badge = useSharedValue(revealed ? 1 : 0);
-  const final = useSharedValue(revealed ? 1 : 0);
 
   // Prepara os losangos animados com a carta ainda parada.
   useEffect(() => {
@@ -67,9 +52,6 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
   useEffect(() => {
     if (!revealed || phase !== 'cover') return;
     if (instant) {
-      content.set(1);
-      badge.set(1);
-      final.set(1);
       const id = setTimeout(() => setPhase('done'), 0);
       return () => clearTimeout(id);
     }
@@ -79,12 +61,9 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
       return () => clearTimeout(id);
     }
     clock.set(withTiming(1, { duration: REVEAL.total, easing: Easing.linear }));
-    content.set(withDelay(T.contentAt, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) })));
-    badge.set(withDelay(T.badgeAt, withSpring(1, { damping: 9, stiffness: 240, mass: 0.7 })));
-    final.set(withDelay(T.finalAt, withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) })));
     const id = setTimeout(() => setPhase('playing'), 0);
     return () => clearTimeout(id);
-  }, [revealed, instant, armed, phase, clock, content, badge, final]);
+  }, [revealed, instant, armed, phase, clock]);
 
   // Desmonta a capa quando ela termina de se desfazer.
   useEffect(() => {
@@ -113,9 +92,6 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
           color={color}
           width={size.width}
           height={size.height}
-          content={content}
-          badge={badge}
-          final={final}
         />
       </Pressable>
 
@@ -139,9 +115,6 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
   );
 });
 
-/** Inclinação da arma, como no jogo (cano para cima, à esquerda). */
-const WEAPON_ANGLE = 55;
-const RAD = (WEAPON_ANGLE * Math.PI) / 180;
 /** Proporção da caixa da arma (os renders são largos e baixos). */
 const WEAPON_ASPECT = 3.2;
 
@@ -150,45 +123,19 @@ function Front({
   color,
   width,
   height,
-  content,
-  badge,
-  final,
 }: {
   offer: NightOffer;
   color: string | null;
   width: number;
   height: number;
-  content: SharedValue<number>;
-  badge: SharedValue<number>;
-  final: SharedValue<number>;
 }) {
   const tint = color ?? colors.mute;
 
-  // Maior comprimento que cabe na carta com a arma inclinada.
-  const cos = Math.cos(RAD);
-  const sin = Math.sin(RAD);
-  const length =
-    width > 0
-      ? Math.min(
-          (width * 0.98) / (cos + sin / WEAPON_ASPECT),
-          (height * 0.68) / (sin + cos / WEAPON_ASPECT),
-        )
-      : 0;
+  // Arma na horizontal, com uma margem de cada lado.
+  const length = width > 0 ? width * 0.86 : 0;
 
-  // A capa é opaca, então a skin já fica visível por baixo dela: aparece no
-  // primeiro losango que some. `content` só dá um leve zoom de entrada.
-  const weaponStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${WEAPON_ANGLE}deg` }, { scale: interpolate(content.get(), [0, 1], [0.9, 1]) }],
-  }));
-  const badgeStyle = useAnimatedStyle(() => ({
-    opacity: Math.min(1, badge.get() * 1.5),
-    transform: [{ translateX: interpolate(badge.get(), [0, 1], [-24, 0]) }],
-  }));
-  const priceStyle = useAnimatedStyle(() => ({
-    opacity: final.get(),
-    transform: [{ translateY: (1 - final.get()) * -6 }],
-  }));
-
+  // Tudo aqui é estático: a capa opaca por cima é a única animação. A skin
+  // aparece pelo primeiro losango que some.
   return (
     <View style={[StyleSheet.absoluteFill, styles.front, { borderColor: color ? withAlpha(color, 0.6) : rarityFallback }]}>
       <LinearGradient
@@ -205,24 +152,24 @@ function Front({
       {/* Arma no centro do buraco que a capa abre. */}
       <View style={styles.weaponCenter} pointerEvents="none">
         {length > 0 ? (
-          <Animated.View style={[{ width: length, height: length / WEAPON_ASPECT }, weaponStyle]}>
+          <View style={{ width: length, height: length / WEAPON_ASPECT }}>
             <Image source={offer.image ?? undefined} style={styles.image} contentFit="contain" cachePolicy="disk" />
-          </Animated.View>
+          </View>
         ) : null}
       </View>
 
       {/* Desconto em vermelho no canto superior esquerdo, com a ponta cortada. */}
-      <Animated.View style={[styles.discount, badgeStyle]}>
+      <View style={styles.discount}>
         <View style={styles.discountBody}>
           <Text variant="micro" color={colors.onAccent} style={styles.discountText}>
             −{offer.discountPercent}%
           </Text>
         </View>
         <View style={styles.discountTip} />
-      </Animated.View>
+      </View>
 
       {/* Preço final e original no canto superior direito. */}
-      <Animated.View style={[styles.prices, priceStyle]}>
+      <View style={styles.prices}>
         <View style={styles.priceLine}>
           <Text variant="micro" color={colors.mute}>
             VP
@@ -234,7 +181,7 @@ function Front({
         <Text variant="micro" color={colors.ash} style={styles.strike}>
           {formatNumber(offer.basePrice)}
         </Text>
-      </Animated.View>
+      </View>
 
       {/* Nome centralizado embaixo, sem barra. */}
       <View style={styles.nameBox}>
