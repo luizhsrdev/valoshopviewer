@@ -14,6 +14,7 @@ import { loadContent } from '@/lib/content';
 import { DEMO_PUUID, fetchDemoShop } from '@/lib/demo';
 import { notifyForShop } from '@/lib/notifications';
 import { SessionExpiredError } from '@/lib/riot/session';
+import { withNightStart } from '@/lib/night-market';
 import { cacheShop, fetchShop, readCachedShop, type Shop } from '@/lib/shop';
 
 import { useSession } from './session';
@@ -77,7 +78,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         } else {
           if (!account) return;
           const content = await loadContent();
-          next = await fetchShop(account, content);
+          next = await withNightStart(await fetchShop(account, content));
           if (stale()) return;
           await cacheShop(next);
         }

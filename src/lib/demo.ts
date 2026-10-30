@@ -156,7 +156,7 @@ export function buildDemoShop(content: Content, state: DemoState, now = Date.now
     wallet: { vp: 2340, rad: 85, kc: 4210 },
     bundles,
     daily: { offers: daily, endsAt: nextUtcMidnight(now) },
-    night: state.night ? { offers: nightOffers, endsAt: state.createdAt + 3 * DAY } : null,
+    night: state.night ? { offers: nightOffers, endsAt: state.createdAt + 3 * DAY, startedAt: state.createdAt } : null,
   };
 }
 

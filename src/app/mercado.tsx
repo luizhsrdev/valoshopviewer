@@ -10,7 +10,8 @@ import { Countdown, useNow } from '@/components/countdown';
 import { NightCard } from '@/components/night-market/night-card';
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
-import { readRevealed, saveRevealed } from '@/lib/night-market';
+import { formatDate } from '@/lib/format';
+import { markNightSeen, readRevealed, saveRevealed } from '@/lib/night-market';
 import { openSkin } from '@/lib/skin-detail';
 import { activeNight, type NightOffer } from '@/lib/shop';
 import { useShop } from '@/providers/shop';
@@ -28,6 +29,12 @@ export default function Mercado() {
   const [initial, setInitial] = useState<Set<string>>(() => new Set());
 
   const marketEndsAt = night?.endsAt;
+  // Primeiro acesso a este mercado: o ícone da loja perde o ponto vermelho.
+  useEffect(() => {
+    if (night) markNightSeen(night);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketEndsAt]);
+
   useEffect(() => {
     if (!marketEndsAt) return;
     let alive = true;
@@ -78,11 +85,14 @@ export default function Mercado() {
             <Text variant="title" color={colors.ink}>
               Mercado noturno
             </Text>
-            {night && revealed ? (
-              <Text variant="caption" color={colors.ash}>
-                {revealed.size < night.offers.length
-                  ? `Toque nas cartas para revelar · ${revealed.size} de ${night.offers.length}`
-                  : `${night.offers.length} de ${night.offers.length} reveladas`}
+            {night ? (
+              <Text
+                variant="numeric"
+                color={colors.ash}
+                style={styles.period}
+                accessibilityLabel={`De ${formatDate(night.startedAt ?? night.endsAt)} a ${formatDate(night.endsAt)}`}>
+                {night.startedAt ? `${formatDate(night.startedAt)} - ` : 'até '}
+                {formatDate(night.endsAt)}
               </Text>
             ) : null}
           </View>
@@ -175,6 +185,7 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, paddingTop: 0, gap: space.xl, paddingBottom: space.section },
   titleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space.md },
   timer: { alignItems: 'flex-end', gap: 2 },
+  period: { fontSize: 13 },
   grid: { gap: space.md },
   row: { flexDirection: 'row', gap: space.md },
   empty: {

@@ -18,6 +18,12 @@ export const keys = {
   dailyNotified: 'daily:notified',
   /** Última combinação de desejos avisada. */
   wishlistNotified: 'wishlist:notified',
+  /** Quando cada mercado noturno foi visto pela 1ª vez (início aproximado). */
+  nightStarts: 'night:starts',
+  /** Último balão "mercado disponível" mostrado na loja. */
+  nightCallout: 'night:callout',
+  /** Último mercado aberto pela pessoa (tira o ponto vermelho do ícone). */
+  nightSeen: 'night:seen',
   /** Ordem e armas escondidas no filtro do catálogo. */
   weaponPrefs: 'catalog:weapons:v1',
 } as const;

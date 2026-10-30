@@ -60,29 +60,67 @@ type Props = {
 export function WeaponSorter({ visible, shown, hidden, onClose, onReorder, onHide, onShow, onReset }: Props) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+
+  // Arrastar para fechar: o painel acompanha o dedo (só para baixo) e fecha se
+  // passar de ~1/4 da altura ou com um puxão rápido; senão, volta com mola.
+  const dragY = useSharedValue(0);
+  const sheetHeight = useSharedValue(600);
+  const dragToClose = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(6)
+        .failOffsetX([-24, 24])
+        .onUpdate((e) => {
+          dragY.set(Math.max(0, e.translationY));
+        })
+        .onEnd((e) => {
+          const far = dragY.get() > sheetHeight.get() * 0.25;
+          const fast = e.velocityY > 900;
+          if (far || fast) {
+            dragY.set(withTiming(sheetHeight.get(), { duration: 180 }, (done) => {
+              if (done) scheduleOnRN(onClose);
+            }));
+          } else {
+            dragY.set(withSpring(0, { damping: 22, stiffness: 260 }));
+          }
+        }),
+    [dragY, sheetHeight, onClose],
+  );
+  const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: dragY.get() }] }));
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <GestureHandlerRootView style={styles.root}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" />
         <Animated.View
           entering={reduced ? undefined : SlideInDown.duration(motion.slow)}
-          style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
-          <View style={styles.grabber} />
-          <View style={styles.head}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="heading" color={colors.ink}>
-                Organizar armas
-              </Text>
-              <Text variant="caption" color={colors.mute}>
-                Arraste pela alça para mudar a ordem. Toque no olho para esconder do filtro.
-              </Text>
+          onLayout={(e) => sheetHeight.set(e.nativeEvent.layout.height)}
+          style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }, dragStyle]}>
+          {/* Arrastar a barrinha ou o cabeçalho para baixo fecha o painel. */}
+          <GestureDetector gesture={dragToClose}>
+            <View collapsable={false}>
+              <View
+                style={styles.grabberArea}
+                accessibilityRole="adjustable"
+                accessibilityLabel="Arraste para baixo para fechar">
+                <View style={styles.grabber} />
+              </View>
+              <View style={styles.head}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text variant="heading" color={colors.ink}>
+                    Organizar armas
+                  </Text>
+                  <Text variant="caption" color={colors.mute}>
+                    Arraste pela alça para mudar a ordem. Toque no olho para esconder do filtro.
+                  </Text>
+                </View>
+                <Pressable onPress={onClose} hitSlop={10} style={styles.done} accessibilityRole="button">
+                  <Text variant="label" color={colors.onPrimary}>
+                    Concluir
+                  </Text>
+                </Pressable>
+              </View>
             </View>
-            <Pressable onPress={onClose} hitSlop={10} style={styles.done} accessibilityRole="button">
-              <Text variant="label" color={colors.onPrimary}>
-                Concluir
-              </Text>
-            </Pressable>
-          </View>
+          </GestureDetector>
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <Text variant="micro" color={colors.ash}>
@@ -301,7 +339,8 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     paddingTop: space.sm,
   },
-  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.hairlineStrong },
+  grabberArea: { alignItems: 'center', paddingTop: space.xs, paddingBottom: space.sm },
+  grabber: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.hairlineStrong },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, padding: space.lg, paddingBottom: space.md },
   done: {
     paddingHorizontal: space.md,

@@ -11,6 +11,7 @@ import { loadContent } from './content';
 import { fetchDemoShop, readDemo } from './demo';
 import { notifyForShop } from './notifications';
 import { getAccount, hasSavedSession } from './riot/session';
+import { withNightStart } from './night-market';
 import { cacheShop, fetchShop, readCachedShop } from './shop';
 
 export const SHOP_TASK = 'minha-loja.atualizar-loja';
@@ -36,7 +37,7 @@ TaskManager.defineTask(SHOP_TASK, async () => {
     if (!due) return BackgroundTask.BackgroundTaskResult.Success;
 
     const content = await loadContent();
-    const shop = await fetchShop(acc, content); // renova o token pelo ssid, se preciso
+    const shop = await withNightStart(await fetchShop(acc, content)); // renova o token pelo ssid, se preciso
     await cacheShop(shop);
     await notifyForShop(shop, { foreground: false });
     return BackgroundTask.BackgroundTaskResult.Success;

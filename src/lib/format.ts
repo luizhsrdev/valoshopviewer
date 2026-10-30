@@ -19,3 +19,9 @@ export function formatCountdown(ms: number): string {
 export function formatTime(epoch: number): string {
   return new Date(epoch).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
+
+/** "31/10/26" (dia/mês/ano com 2 dígitos), no fuso do celular. Sem Intl, de propósito. */
+export function formatDate(epoch: number): string {
+  const d = new Date(epoch);
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${pad(d.getFullYear() % 100)}`;
+}

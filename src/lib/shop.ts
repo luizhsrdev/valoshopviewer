@@ -56,7 +56,11 @@ export type Shop = {
   wallet: { vp: number; rad: number; kc: number } | null;
   bundles: FeaturedBundle[];
   daily: { offers: SkinOffer[]; endsAt: number };
-  night: { offers: NightOffer[]; endsAt: number } | null;
+  /**
+   * `startedAt`: a Riot só informa o fim do mercado; o início é quando o app
+   * viu este mercado pela primeira vez (ver night-market.ts).
+   */
+  night: { offers: NightOffer[]; endsAt: number; startedAt?: number } | null;
 };
 
 const vp = (cost: Record<string, number> | null | undefined) => cost?.[CURRENCY.vp] ?? 0;

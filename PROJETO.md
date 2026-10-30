@@ -211,7 +211,7 @@ O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que est�
 - Acento único `#FF4655`: contagem regressiva, indicador do carrossel e botão de login/aceite. O botão primário comum continua branco, como no Raycast.
 - Raridade (contenttiers): Select `#5A9FE2`, Deluxe `#009587`, Premium `#D1548D`, Exclusive `#F5955B`, Ultra `#FAD663`. No card, vira borda de 1px a 55% e brilho de 16px a 18%.
 - Fonte Inter (`@expo-google-fonts/inter`), sem o `ss03`, que o RN não suporta no Android. Números com `tabular-nums`.
-- Nenhum logo, fonte ou arte da Riot. As únicas imagens são de skins e pacotes da valorant-api.com, e as moedas aparecem como texto (VP/RAD/KC).
+- Nenhum logo, fonte ou arte da Riot. As únicas imagens são de skins e pacotes da valorant-api.com, e as moedas aparecem como texto (VP/RAD/KC). **Exceção decidida pelo usuário:** o ícone do mercado noturno do jogo (seção 6.13).
 
 ## 6.7 Arquitetura do app
 
@@ -251,7 +251,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 
 ## 6.8 Mercado noturno
 
-- **Nunca** aparece na tela da loja. Na loja fica só o banner "Mercado noturno disponível" com o tempo restante, que abre a rota `/mercado`.
+- **Nunca** aparece na tela da loja. Na loja há só o **ícone do mercado** no topo, à esquerda do coração, cinza, visível enquanto o mercado está aberto, com um **ponto vermelho só até o primeiro acesso a este mercado** (`night:seen`; volta num mercado novo), e um **balão que aponta para ele** ("Mercado noturno disponível · Termina em …" · "Abrir"). O balão aparece quando um mercado novo é visto e, depois, **no máximo a cada 6 h**, sempre que a loja aparece. Também aparece ao **segurar o ícone** (350 ms). Some sozinho em 6 s, ou ao **tocar em qualquer lugar fora dele** (inclusive no início de uma rolagem); tocar nele abre `/mercado`. **Animação:** nasce do ícone (origem na ponta da seta) e cresce de 70% a 100% com uma mola discreta, que passa só um fio do tamanho final, e esmaece ao entrar. Ao fechar, encolhe de volta para o ícone (140 ms). Antes crescia de 12%, com mais elástico, e o usuário achou exagerado e só depois é desmontado (estado `hidden → open → closing`). Antes deslizava de cima, passando por cima do ícone. Substituiu o banner que ficava acima de toda a loja (a pedido).
 - **Notificação:** a tarefa em segundo plano (a cada ~30 min) e o refresh em primeiro plano detectam o `BonusStore`. Cada mercado é avisado uma vez, identificado pelos IDs das ofertas. Em primeiro plano não notifica, porque o banner já aparece. Ao tocar, `data.url = "/mercado"` abre a tela direto, inclusive com o app fechado.
 - **Cartas:** são 6. O verso é uma **grade de losangos** (~80 por carta) na cor da raridade, escurecida, com linhas finas entre eles. Por cima, enfeites próprios: dois losangos concêntricos. Tudo desenhado no app, sem arte da Riot. Como no jogo, a cor da raridade já aparece antes de revelar.
 - **Revelação (a pedido, fiel ao jogo; substituiu o flip 3D)**, em `card-back.tsx`. Um único relógio por carta (0 → 1 em 1,45 s) move todos os losangos na thread de UI:
@@ -264,7 +264,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - Cada losango é uma base fixa mais uma camada clara por cima, e só se animam **opacidade e escala**. A cor não é mais interpolada a cada quadro, o que custava caro com ~80 losangos.
   - A capa é desmontada quando termina.
   - O modo de desenvolvimento é mais lento; o APK final fica mais fluido.
-- A dica "Toque nas cartas para revelar · 2 de 6" fica no cabeçalho, no lugar do contador, e não mais em cada carta.
+- O cabeçalho do mercado mostra o **período**: "31/10/26 - 13/11/26" (`formatDate`, sem Intl). A Riot só informa o fim; o **início é quando o app viu este mercado pela primeira vez** (`withNightStart`, guardado em `night:starts`, gravado no refresh e na tarefa em segundo plano). Na demo, é a criação do mercado falso. Substituiu o contador "x de 6 reveladas".
 - **Carta revelada, no layout do jogo:**
   - Fundo em degradê na cor da raridade, sem marca d'água.
   - **Arma na horizontal** (86% da largura), **no centro da carta**, onde a capa abre o buraco. Uma versão inclinada a 55°, como no jogo, foi testada e descartada a pedido.
@@ -337,6 +337,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - **Animação:** arrastando, as linhas vizinhas usam um elástico leve (`DRAG_SPRING`). Ao esconder ou mostrar, um elástico ainda mais contido (`SHIFT_SPRING`), que passa ~2 pt do lugar (~4%) e assenta em ~0,5 s, medido quadro a quadro no emulador. Em saltos de várias posições (restaurar, toques rápidos), o mesmo spring sem passar do lugar (`overshootClamping`): num spring, o quanto a linha passa é proporcional à distância, e era isso que fazia as linhas se sobreporem.
   - O **olho esconde a arma do filtro**. Ela vai para a seção "Ocultas", de onde volta ao fim da lista.
   - Tem **"Restaurar padrão"**. O "Todas" fica sempre em primeiro.
+  - **Arrastar para fechar:** o painel acompanha o dedo ao arrastar a barrinha ou o cabeçalho para baixo. Fecha se passar de ~1/4 da altura ou com um puxão rápido (>900 pt/s); senão, volta com mola. Testado no emulador (arraste curto volta, longo fecha).
   - Salvo em `catalog:weapons:v1` (UUIDs; armas novas de um patch entram no fim). Se a arma filtrada no momento for escondida, o filtro volta para "Todas".
   - Testado no emulador: arrastar a Sheriff até o topo, esconder a Classic e ver a fileira atualizada.
 - **Desempenho (bug corrigido):** a tela travava a thread do JavaScript por minutos, e esse era o "reloading infinito". A causa eram o `localeCompare(…, 'pt-BR')` e o `normalize('NFD')` ao ordenar e preparar a busca das ~1.400 skins: no Android, o Hermes implementa os dois chamando o Java, e o `localeCompare` com idioma recria o comparador a cada chamada. Trocado por funções em JavaScript puro (`src/lib/text.ts`: `fold` e `compareText`). **Regra: não usar `localeCompare` com idioma nem `normalize` em listas grandes.**
@@ -356,7 +357,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - pede a permissão se ela foi negada;
   - avisa se o Android restringir o app em segundo plano;
   - tem o botão **Sair**, que saiu do topo da Loja. A lista de desejos sobrevive ao Sair.
-- **Demo / painel de desenvolvimento:** "Avisos da loja em 5 s" (zera o que já foi avisado e manda loja, desejos e mercado) e "Mercado noturno em 5 s". Na demo, a tarefa em segundo plano roda o mesmo fluxo de avisos com a loja falsa.
+- **Demo / painel de desenvolvimento:** "Mostrar aviso do mercado" (exibe o balão na hora, ignorando as 6 h), "Avisos da loja em 5 s" (zera o que já foi avisado e manda loja, desejos e mercado) e "Mercado noturno em 5 s". Na demo, a tarefa em segundo plano roda o mesmo fluxo de avisos com a loja falsa.
 
 ## 6.12 Desempenho (medições no emulador, development build, 2026-10-30)
 
@@ -371,7 +372,7 @@ Os scripts de medição (`measure.sh`, `scroll.sh`, `reveal.sh`) ficaram no rasc
 | **Revelar uma carta do mercado** | **27 quadros em 1,5 s, 117–150 ms cada (100% com engasgo)** | **85–86 quadros, 16–17 ms cada, nas 4 revelações seguidas: 60 fps** |
 
 **O que foi corrigido:**
-- O **pulso infinito do ponto do banner do mercado** forçava a tela inteira a ser redesenhada ~60 vezes por segundo, mesmo parada ou escondida embaixo de outra tela. Agora pulsa 3 vezes ao aparecer e só com a loja em foco.
+- O **pulso infinito do ponto do banner do mercado** (banner removido depois) forçava a tela inteira a ser redesenhada ~60 vezes por segundo, mesmo parada ou escondida embaixo de outra tela. Agora pulsa 3 vezes ao aparecer e só com a loja em foco.
 - **Um relógio só** (`countdown.tsx`) para todas as contagens, alinhado à virada do segundo. Ele pausa com o app em segundo plano e nas telas fora de foco, e usa um tique por minuto quando falta mais de 1 dia.
 
 **Revelação das cartas (o gargalo real):** o custo é proporcional ao número de Views animadas.
@@ -386,6 +387,18 @@ Os scripts de medição (`measure.sh`, `scroll.sh`, `reveal.sh`) ficaram no rasc
 - A **grade é ancorada no centro da carta**: com losangos maiores, a grade começando no canto deslocava o centro do X ~40 px para cima.
 
 A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centro para os cantos), conferida numa gravação quadro a quadro. Se um dia precisar de mais detalhe visual, o caminho é o Skia (canvas único, exige build novo).
+
+## 6.13 Logo e ícone do mercado (2026-10-30)
+
+- **Logo do app** (sacola vermelha, enviada pelo usuário em `~/Downloads/valoshoplogo.png`, sem fundo transparente):
+  - `assets/images/icon.png`: o logo em 1024×1024.
+  - `android-icon-foreground.png`: logo recortado e centralizado (470 px num quadro de 1024) sobre preto, dentro da área segura do ícone adaptativo; simulado em círculo, squircle e gota.
+  - `android-icon-background.png` + `adaptiveIcon.backgroundColor` = `#000000`.
+  - `android-icon-monochrome.png`: silhueta branca, para ícones temáticos (Android 13+) e notificações.
+  - `splash-icon.png`: logo recortado, sobre o fundo escuro da splash.
+  - **Só aparece depois de um build novo** (development e `apk`): o ícone é um recurso nativo.
+- **Ícone do mercado noturno no topo da Loja** (`assets/images/night-market.png`, a partir de `~/Downloads/nightmarket.png`): fica à esquerda do coração, cinza como os outros ícones, com um ponto vermelho, e só aparece com o mercado aberto. O toque abre `/mercado`. É arte do jogo enviada pelo usuário: exceção consciente à regra inicial de não usar arte da Riot.
+- O banner "Mercado noturno disponível" **foi removido**; o aviso agora é o balão que aponta para o ícone (seção 6.8).
 
 ## 7. Regras do projeto
 
@@ -440,7 +453,9 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - **Animações no conteúdo da carta** (zoom da arma, desconto deslizando com mola, preço subindo): removidas a pedido. Só a capa anima.
 - **Controles padrão do `<video>` da WebView**: descartados, porque destoavam do app. Trocados por controles próprios.
 - **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
-- **Mercado noturno na mesma tela da loja**: proibido por regra do produto. Só o banner.
+- **Mercado noturno na mesma tela da loja**: proibido por regra do produto.
+- **Banner "Mercado noturno disponível" acima da loja**: trocado pelo ícone no topo + balão apontando para ele, que volta a cada 6 h.
+- **Contador "x de 6 reveladas" no mercado**: trocado pelo período do mercado.
 - **Telas de exemplo do template (tabs, explore)**: removidas.
 - **Borda acesa (2 px) durante a revelação**: removida a pedido. O contorno entre os losangos também ficou mais discreto (3,5% em vez de 22%). Cada losango agora é um contêiner **sem borda e sem fundo**, com duas camadas do mesmo tamanho (escura e clara), cada uma com a sua linha de 3,5%. Antes a borda ficava no losango, e no Android a camada clara é cortada por dentro dessa borda (o inset negativo não funciona), então, aceso, aparecia uma grade escura forte.
 - **Marcas d'água por raridade no fundo da carta** (espiral, "olho", triângulo, seta): tentadas com Views e depois com PNGs gerados por script, sem chegar a um resultado parecido o bastante com o jogo. **Removidas de vez** a pedido (componente, imagens e script).

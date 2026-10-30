@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,17 +10,20 @@ import { Countdown, useNow } from '@/components/countdown';
 import { Skeleton } from '@/components/skeleton';
 import { BundleCarousel } from '@/components/store/bundle-carousel';
 import { DevPanel } from '@/components/store/dev-panel';
-import { NightMarketBanner } from '@/components/store/night-market-banner';
+import { NightMarketCallout } from '@/components/store/night-market-callout';
 import { OfferCard, OfferCardSkeleton } from '@/components/store/offer-card';
 import { Wallet } from '@/components/store/wallet';
 import { Text } from '@/components/text';
 import { formatTime } from '@/lib/format';
+import { markNightCallout, marketKey, shouldShowNightCallout, wasNightSeen } from '@/lib/night-market';
 import { openSkin } from '@/lib/skin-detail';
 import { activeNight, type SkinOffer } from '@/lib/shop';
 import { useSession } from '@/providers/session';
 import { useShop } from '@/providers/shop';
 import { useWishlist } from '@/providers/wishlist';
 import { colors, radius, space, withAlpha } from '@/theme';
+
+const NIGHT_CALLOUT_EVERY = 6 * 3_600_000;
 
 export default function Loja() {
   const { account, demo } = useSession();
@@ -29,6 +33,51 @@ export default function Loja() {
   const now = useNow(30_000);
   const night = activeNight(shop, now);
 
+  // Balão apontando para o ícone do mercado: num mercado novo e, depois, no
+  // máximo a cada 6 h, sempre que a loja aparece.
+  const focused = useIsFocused();
+  // hidden → open → closing (anima de volta para o ícone) → hidden.
+  const [callout, setCallout] = useState<'hidden' | 'open' | 'closing'>('hidden');
+  const [iconsWidth, setIconsWidth] = useState(0);
+  const [nightIconCenter, setNightIconCenter] = useState(0);
+  const showCallout = () => setCallout('open');
+  const hideCallout = () => setCallout((c) => (c === 'open' ? 'closing' : c));
+  // Tocar fora fecha o balão: o toque dentro dele marca esta flag antes de
+  // chegar à tela (os eventos sobem do filho para o pai).
+  const touchInCallout = useRef(false);
+  const onScreenTouch = () => {
+    if (touchInCallout.current) {
+      touchInCallout.current = false;
+      return;
+    }
+    if (callout === 'open') hideCallout();
+  };
+  const nightKey = night ? marketKey(night) : null;
+  // Ponto vermelho no ícone até o primeiro acesso a este mercado.
+  const [nightSeen, setNightSeen] = useState(true);
+  useEffect(() => {
+    if (!focused || !night) return;
+    let alive = true;
+    wasNightSeen(night).then((seen) => alive && setNightSeen(seen));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, nightKey]);
+  useEffect(() => {
+    if (!focused || !night) return;
+    let alive = true;
+    shouldShowNightCallout(night, NIGHT_CALLOUT_EVERY).then((show) => {
+      if (!alive || !show) return;
+      showCallout();
+      markNightCallout(night);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, nightKey]);
+
   const who = demo?.enabled
     ? 'Modo demonstração'
     : account?.gameName
@@ -36,7 +85,7 @@ export default function Loja() {
       : 'Sua loja';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top']} onTouchStart={onScreenTouch}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -57,15 +106,24 @@ export default function Loja() {
             </Text>
           </View>
           <View style={styles.topRight}>
-            <View style={styles.icons}>
+            <View style={styles.icons} onLayout={(e) => setIconsWidth(e.nativeEvent.layout.width)}>
               {night ? (
                 <Pressable
-                  onPress={() => router.push('/mercado')}
+                  onLayout={(e) => setNightIconCenter(e.nativeEvent.layout.x + e.nativeEvent.layout.width / 2)}
+                  onPress={() => {
+                    hideCallout();
+                    router.push('/mercado');
+                  }}
+                  onLongPress={showCallout}
+                  delayLongPress={350}
                   hitSlop={8}
                   style={({ pressed }) => [styles.iconButton, pressed && { backgroundColor: colors.surfaceElevated }]}
                   accessibilityRole="button"
-                  accessibilityLabel="Mercado noturno">
-                  <Image source={require('@/assets/images/night-market.png')} style={styles.nightIcon} tintColor={colors.accent} />
+                  accessibilityLabel={nightSeen ? 'Mercado noturno' : 'Mercado noturno, novo'}
+                  accessibilityHint="Segure para ver quanto tempo falta">
+                  <Image source={require('@/assets/images/night-market.png')} style={styles.nightIcon} tintColor={colors.mute} />
+                  {/* Ponto vermelho: mercado novo, ainda não aberto. */}
+                  {nightSeen ? null : <View style={styles.nightDot} />}
                 </Pressable>
               ) : null}
               <HeaderIcon
@@ -74,6 +132,21 @@ export default function Loja() {
                 onPress={() => router.push('/desejos')}
               />
               <HeaderIcon name="settings-outline" label="Configurações" onPress={() => router.push('/configuracoes')} />
+              {night && callout !== 'hidden' ? (
+                <NightMarketCallout
+                  open={callout === 'open'}
+                  onClosed={() => setCallout('hidden')}
+                  endsAt={night.endsAt}
+                  // A fileira de ícones sai space.sm pela direita; o balão fica alinhado à margem.
+                  arrowRight={iconsWidth - nightIconCenter - space.sm}
+                  onPress={() => {
+                    hideCallout();
+                    router.push('/mercado');
+                  }}
+                  onDismiss={hideCallout}
+                  onTouchInside={() => (touchInCallout.current = true)}
+                />
+              ) : null}
             </View>
             {shop ? <Wallet wallet={shop.wallet} /> : <Skeleton width={140} height={14} />}
           </View>
@@ -92,8 +165,6 @@ export default function Loja() {
           </View>
         ) : null}
 
-        {night ? <NightMarketBanner endsAt={night.endsAt} onPress={() => router.push('/mercado')} /> : null}
-
         {loading ? (
           <StoreSkeleton />
         ) : !shop ? (
@@ -111,7 +182,7 @@ export default function Loja() {
           </>
         )}
 
-        {__DEV__ ? <DevPanel /> : null}
+        {__DEV__ ? <DevPanel onShowNightCallout={showCallout} /> : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -189,10 +260,21 @@ function ErrorState({ message, onRetry }: { message: string | null; onRetry(): v
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: space.lg, gap: space.lg, paddingBottom: space.section },
-  top: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  top: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, zIndex: 10 },
   topRight: { alignItems: 'flex-end', gap: space.sm },
   icons: { flexDirection: 'row', gap: space.xs, marginRight: -space.sm },
-  nightIcon: { width: 19, height: 19 },
+  nightIcon: { width: 21, height: 21 },
+  nightDot: {
+    position: 'absolute',
+    top: 6,
+    right: 7,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    borderWidth: 1.5,
+    borderColor: colors.canvas,
+  },
   iconButton: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   staleBar: {
     flexDirection: 'row',

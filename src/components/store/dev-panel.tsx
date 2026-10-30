@@ -13,7 +13,7 @@ import { colors, radius, space } from '@/theme';
 import { Text } from '../text';
 
 /** Ferramentas de teste. Só é renderizado quando __DEV__ é true. */
-export function DevPanel() {
+export function DevPanel({ onShowNightCallout }: { onShowNightCallout?(): void }) {
   const { demo, setDemo } = useSession();
   const { shop } = useShop();
   const [msg, setMsg] = useState<string | null>(null);
@@ -29,6 +29,7 @@ export function DevPanel() {
       show: on,
       run: async () => {
         await clearRevealed();
+        await remove(keys.nightSeen);
         await setDemo(newDemoState(true));
         setMsg('Novo mercado noturno gerado.');
       },
@@ -38,6 +39,14 @@ export function DevPanel() {
       show: on,
       run: async () => {
         if (demo) await setDemo({ ...demo, night: !demo.night });
+      },
+    },
+    {
+      label: 'Mostrar aviso do mercado',
+      show: !!shop?.night,
+      run: () => {
+        onShowNightCallout?.();
+        setMsg('Role até o topo: o balão aponta para o ícone do mercado.');
       },
     },
     {
