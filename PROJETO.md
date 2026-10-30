@@ -249,16 +249,17 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 
 - **Nunca** aparece na tela da loja. Na loja fica só o banner "Mercado noturno disponível" com o tempo restante, que abre a rota `/mercado`.
 - **Notificação:** a tarefa em segundo plano (a cada ~30 min) e o refresh em primeiro plano detectam o `BonusStore`. Cada mercado é avisado uma vez, identificado pelos IDs das ofertas. Em primeiro plano não notifica, porque o banner já aparece. Ao tocar, `data.url = "/mercado"` abre a tela direto, inclusive com o app fechado.
-- **Cartas:** são 6, com verso próprio (moldura com cantos marcados, dois losangos concêntricos e hachura sutil), sem arte da Riot. **Como no jogo, o verso já mostra a cor da raridade**: gradiente, moldura, losangos e borda na cor. A skin só aparece ao revelar.
-- **Revelação** (reanimated, só `transform`/`opacity` na thread de UI):
-  1. Flip 3D de 560 ms. As faces trocam em 90°, o que é mais confiável no Android do que `backfaceVisibility`.
-  2. Brilho na cor da raridade, feito de 3 círculos concêntricos **centralizados na carta**. Começa em 220 ms: sobe em 420 ms e assenta em 700 ms. O pico e a escala crescem com a raridade (Select 0,30 → Ultra 0,86 de opacidade; escala 1,0 → 1,72).
-  3. Conteúdo aos 500 ms: raridade, skin e nome, com o preço original riscado.
-  4. Selo de desconto aos 760 ms, com mola.
-  5. Preço final aos 860 ms.
-- A carta revelada fica com borda (60%) e fundo (8%) na cor da raridade. **Sem o nome da raridade**: a cor basta. Tocar numa carta revelada abre os detalhes da skin.
+- **Cartas:** são 6. O verso é uma **grade de losangos** (~80 por carta) na cor da raridade, escurecida, com linhas finas entre eles. Por cima, enfeites próprios: dois losangos concêntricos e "TOQUE PARA REVELAR". Tudo desenhado no app, sem arte da Riot. Como no jogo, a cor da raridade já aparece antes de revelar.
+- **Revelação (a pedido, fiel ao jogo; substituiu o flip 3D)**, em `card-back.tsx`. Um único relógio por carta (0 → 1 em 1,5 s) move todos os losangos na thread de UI:
+  1. **0–160 ms:** os enfeites somem.
+  2. **0–600 ms:** cada losango troca da cor escura para a cor da raridade, do centro para fora. O atraso combina a distância em losango com a preferência pelas diagonais, então primeiro acende um losango e depois um "X". A borda acende junto.
+  3. **~420–880 ms:** clarão branco quando a carta inteira acende. O pico vai de 6% (Select) a 34% (Ultra).
+  4. **700–1500 ms:** os losangos somem e encolhem do centro para os cantos, revelando a skin. No fim sobram as faixas de cima e de baixo.
+  5. **Conteúdo:** a skin aparece aos 700 ms, o selo de desconto (com mola) aos 1150 ms e o preço final aos 1250 ms.
+- Em repouso, os losangos são Views estáticas, sem custo. Os animados só são montados no toque e são desmontados quando a capa termina.
+- A carta revelada fica com borda (60%) e fundo (10%) na cor da raridade, sem o nome da raridade. Tocar nela abre os detalhes da skin.
 - **Persistência:** os `BonusOfferID` revelados ficam no AsyncStorage com o `endsAt` do mercado e expiram com ele. Ao reabrir, as cartas já reveladas aparecem sem animação.
-- **"Remover animações"** do Android (`useReducedMotion`): revela na hora, sem flip nem brilho, e os skeletons e o banner param de pulsar.
+- **"Remover animações"** do Android (`useReducedMotion`): revela na hora, sem losangos nem clarão, e os skeletons e o banner param de pulsar.
 - As imagens são pré-carregadas (`Image.prefetch`) ao abrir a tela, para a revelação não esperar a rede.
 - **Modo demonstração (só `__DEV__`):** botão "Entrar no modo demonstração (dev)" no login, mais o painel "Ferramentas de desenvolvimento" no fim da loja. O painel tem: ligar/desligar a demo, gerar um novo mercado, abrir/fechar o mercado, resetar as cartas, notificação em 5 s (para testar o deep link) e rodar a tarefa em segundo plano. A demo usa skins reais do catálogo, uma de cada raridade mais uma extra, e não toca na API da Riot.
 
@@ -324,6 +325,8 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Build local** (`expo run:android`): usado só para testar no emulador; a distribuição continua pelo EAS na nuvem.
 - **`@react-native-cookies/cookies`**: sem manutenção desde 2022 e sem garantia na New Architecture. Trocado pelo módulo local.
 - **`backfaceVisibility` no flip**: instável no Android. Trocado pela troca de opacidade em 90°.
+- **Flip 3D + brilho circular na revelação**: substituídos pela capa de losangos que acende e se desfaz, como no jogo (a pedido).
+- **Verso com moldura e cantos marcados**: substituído pela grade de losangos.
 - **Controles padrão do `<video>` da WebView**: descartados, porque destoavam do app. Trocados por controles próprios.
 - **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
 - **Mercado noturno na mesma tela da loja**: proibido por regra do produto. Só o banner.
