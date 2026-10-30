@@ -292,7 +292,24 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - botão de som;
   - "carregando" e "não foi possível tocar · Tentar de novo";
   - controles que somem após 2,5 s tocando e voltam ao toque.
+- **Resolução das mídias (origem × tela, celular 1080 px de largura, densidade ~2,75):**
+
+  | Mídia | Origem | Exibida em | Pixels na tela |
+  |---|---|---|---|
+  | Arte do pacote (carrossel e tela do pacote) | 1648×804 a 1920×1080, **0,7–2 MB** | 361×203 pt | ~990×560 |
+  | Render da skin nos cards da loja | 512 px de largura, 40–90 KB | ~140×64 pt | ~385×176 |
+  | Arma nas cartas do mercado | 512 px | ~150 pt de largura | ~410 px |
+  | Render nos detalhes (com zoom até 4×) | 512 px | 361×241 pt | ~990×660 (a origem é menor: fica um pouco suave; sem versão maior na API) |
+  | Miniatura de variante | 128×128 | 52 pt | ~143 |
+  | Miniaturas do catálogo | 512 px | ~74×35 pt | ~200×97 |
+  | Chaveiro / spray / card (pacote) | 128 / 512 / 452×128 | 56 pt | ~154 |
+  | Vídeos | 1280×720 ou 1920×1080, 60 fps, 8–46 MB | 361×241 pt (tela cheia: tela inteira deitada) | ~990×660 (tela cheia ~1920×1080) |
+
+  - **Imagens:** o `expo-image` já **decodifica no tamanho da tela** (`allowDownscaling`, padrão), então memória e GPU já são limitadas. O **download** é sempre o arquivo original: a valorant-api.com não oferece tamanhos menores e o app não tem servidor para redimensionar. O único peso real é a arte dos pacotes (até 2 MB), baixada uma vez e guardada no cache em disco.
+  - **Vídeos:** a CDN da Riot só tem uma versão de cada vídeo, sem opção de resolução menor, e o app não tem como recomprimir. A decodificação é feita pelo hardware do celular, então o custo é só de dados.
+
 - **Qualidade dos vídeos (medida em 2026-10-30, amostra de 6 dos 2.745 do catálogo):** são os arquivos originais da Riot, servidos por `valorant.dyn.riotcdn.net` e tocados sem recompressão. Variam entre **1920×1080 e 1280×720**, ~60 fps (alguns ~47), de 15 a 37 s, **4 a 10 Mbps, ou seja, 8 a 46 MB por vídeo**. Isso pesa no plano de dados móveis (ver ideias futuras).
+- **Dois toques para pular:** dois toques na metade esquerda voltam 3 s, e na direita avançam 3 s. Toques duplos seguidos (dentro de 1 s) somam: +3, +6, +9… Aparece um semicírculo claro no lado tocado, com setas e "−3 s / +6 s", que some sozinho. O toque simples (mostrar/esconder controles) espera ~300 ms para saber se não vem um segundo toque, como no YouTube. Para leitor de tela, há as ações "Voltar/Avançar 3 segundos". (O emulador com Play Store não permite simular toques rápidos via `adb`; testar o toque duplo no aparelho.)
 - **Tela cheia:** gira o player em 90° num modal, sem barra de status e continuando do mesmo ponto. O app é travado em retrato, e girar a tela de verdade exigiria o `expo-screen-orientation`, que é nativo. O botão voltar do Android sai da tela cheia.
 - Os ícones são desenhados com Views (`player-icons.tsx`), sem fonte de ícones nem SVG, para não exigir build novo.
 - Com "Remover animações" ativo, os controles aparecem e somem sem fade.

@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,6 +9,8 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -18,6 +21,10 @@ import { FullscreenIcon, PauseIcon, PlayIcon, SoundIcon } from './player-icons';
 import { VideoSurface, type VideoState, type VideoSurfaceHandle } from './video-surface';
 
 const HIDE_AFTER = 2500;
+/** Dois toques na metade esquerda/direita: volta/avança este tanto (s). */
+const SEEK_STEP = 3;
+/** Toques duplos seguidos dentro deste tempo somam (+3, +6, +9…), como no YouTube. */
+const SEEK_CHAIN_MS = 1000;
 
 type Resume = { at: number; muted: boolean };
 
@@ -183,6 +190,17 @@ function PlayerView({
 
   // Pedido de seek vindo do gesto (cada pedido é um objeto novo).
   const [seekRequest, setSeekRequest] = useState<{ t: number } | null>(null);
+  // Dois toques: alvo acumulado e aviso visual ("+6 s") do lado tocado.
+  const [chain, setChain] = useState<{ side: 'back' | 'forward'; seconds: number; target: number; n: number } | null>(
+    null,
+  );
+  // A sequência (+3, +6, +9…) acaba 1 s depois do último toque duplo.
+  useEffect(() => {
+    if (!chain) return;
+    const id = setTimeout(() => setChain(null), SEEK_CHAIN_MS);
+    return () => clearTimeout(id);
+  }, [chain]);
+  const [overlayWidth, setOverlayWidth] = useState(0);
   useEffect(() => {
     if (seekRequest) surface.current?.seek(seekRequest.t);
   }, [seekRequest]);
@@ -224,6 +242,34 @@ function PlayerView({
   }));
   const trackStyle = useAnimatedStyle(() => ({ height: scrubbing.get() ? 5 : 3 }));
 
+  /** Volta/avança 3 s; toques duplos seguidos somam a partir do último alvo. */
+  const seekBy = (side: 'back' | 'forward') => {
+    if (!state.duration) return;
+    const chained = chain && chain.side === side;
+    const from = chained ? chain.target : state.time;
+    const target = Math.min(state.duration, Math.max(0, from + (side === 'forward' ? SEEK_STEP : -SEEK_STEP)));
+    setChain({ side, seconds: chained ? chain.seconds + SEEK_STEP : SEEK_STEP, target, n: (chain?.n ?? 0) + 1 });
+    setSeekRequest({ t: target });
+  };
+
+  const taps = useMemo(() => {
+    const doubleTap = Gesture.Tap()
+      .runOnJS(true)
+      .numberOfTaps(2)
+      .maxDelay(300)
+      .onEnd((e, success) => {
+        if (success) seekBy(e.x < overlayWidth / 2 ? 'back' : 'forward');
+      });
+    const singleTap = Gesture.Tap()
+      .runOnJS(true)
+      .onEnd((_e, success) => {
+        if (success) setShown((v) => !v);
+      });
+    // O toque simples espera o duplo falhar (~300 ms), como em players de vídeo.
+    return Gesture.Exclusive(doubleTap, singleTap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayWidth, chain, state.time, state.duration]);
+
   const shownTime = scrubTime ?? state.time;
   const loading = state.waiting && !state.error;
 
@@ -231,13 +277,30 @@ function PlayerView({
     <View style={styles.fill}>
       <VideoSurface ref={surface} uri={uri} startAt={startAt} muted={muted} onState={onState} />
 
-      {/* Camada de toque: mostra/esconde os controles. */}
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={() => setShown((v) => !v)}
-        accessibilityRole="button"
-        accessibilityLabel={shown ? 'Esconder controles' : 'Mostrar controles'}
-      />
+      {/* Camada de toque: um toque mostra/esconde os controles; dois toques
+          na metade esquerda/direita voltam/avançam 3 s. */}
+      <GestureDetector gesture={taps}>
+        <View
+          style={StyleSheet.absoluteFill}
+          collapsable={false}
+          onLayout={(e) => setOverlayWidth(e.nativeEvent.layout.width)}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={shown ? 'Esconder controles' : 'Mostrar controles'}
+          accessibilityHint="Toque duas vezes nas laterais para voltar ou avançar 3 segundos"
+          accessibilityActions={[
+            { name: 'activate' },
+            { name: 'decrement', label: `Voltar ${SEEK_STEP} segundos` },
+            { name: 'increment', label: `Avançar ${SEEK_STEP} segundos` },
+          ]}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === 'activate') setShown((v) => !v);
+            if (e.nativeEvent.actionName === 'decrement') seekBy('back');
+            if (e.nativeEvent.actionName === 'increment') seekBy('forward');
+          }}
+        />
+      </GestureDetector>
+      {chain ? <SeekFlash key={chain.n} side={chain.side} seconds={chain.seconds} reduced={reduced} /> : null}
 
       {loading ? (
         <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
@@ -313,6 +376,34 @@ function PlayerView({
   );
 }
 
+/**
+ * Aviso de "−3 s / +3 s" no lado tocado: um semicírculo claro com setas,
+ * que aparece e some sozinho.
+ */
+function SeekFlash({ side, seconds, reduced }: { side: 'back' | 'forward'; seconds: number; reduced: boolean }) {
+  const opacity = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    opacity.set(
+      reduced
+        ? withDelay(650, withTiming(0, { duration: 0 }))
+        : withSequence(withTiming(1, { duration: 120 }), withDelay(450, withTiming(0, { duration: 260 }))),
+    );
+  }, [opacity, reduced]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
+  const back = side === 'back';
+  return (
+    <Animated.View pointerEvents="none" style={[styles.flash, back ? styles.flashLeft : styles.flashRight, style]}>
+      <View style={styles.flashContent}>
+        <Ionicons name={back ? 'play-back' : 'play-forward'} size={22} color={colors.ink} />
+        <Text variant="label" color={colors.ink}>
+          {back ? '−' : '+'}
+          {seconds} s
+        </Text>
+      </View>
+    </Animated.View>
+  );
+}
+
 function IconButton({ label, onPress, children }: { label: string; onPress(): void; children: React.ReactNode }) {
   return (
     <Pressable
@@ -371,6 +462,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.ink,
   },
+  flash: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '42%',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(colors.ink, 0.12),
+  },
+  // Semicírculo encostado na borda, como nos players de vídeo.
+  flashLeft: { left: 0, borderTopRightRadius: 9999, borderBottomRightRadius: 9999, alignItems: 'center' },
+  flashRight: { right: 0, borderTopLeftRadius: 9999, borderBottomLeftRadius: 9999, alignItems: 'center' },
+  flashContent: { alignItems: 'center', gap: space.xs },
   iconButton: {
     width: 36,
     height: 36,
