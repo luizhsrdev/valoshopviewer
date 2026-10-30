@@ -7,15 +7,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const keys = {
   consent: 'consent',
-  content: 'content:v3',
+  content: 'content:v4',
   shop: 'shop:v3',
   nightRevealed: 'night:revealed',
   nightNotified: 'night:notified',
   demo: 'dev:demo',
+  wishlist: 'wishlist:v1',
+  notifySettings: 'settings:notifications:v1',
+  /** Última loja diária avisada (IDs das ofertas). */
+  dailyNotified: 'daily:notified',
+  /** Última combinação de desejos avisada. */
+  wishlistNotified: 'wishlist:notified',
 } as const;
 
 /** Chaves de versões antigas do cache, apagadas quando o formato muda. */
-export const legacyKeys = ['content:v1', 'content:v2', 'shop:v1', 'shop:v2'];
+export const legacyKeys = ['content:v1', 'content:v2', 'content:v3', 'shop:v1', 'shop:v2'];
 
 export async function readJson<T>(key: string): Promise<T | null> {
   try {

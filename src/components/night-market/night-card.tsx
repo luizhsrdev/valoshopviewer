@@ -9,6 +9,7 @@ import type { NightOffer } from '@/lib/shop';
 import { colors, radius, rarityFallback, space, withAlpha } from '@/theme';
 
 import { Text } from '../text';
+import { WishHeart } from '../wish-heart';
 import { CardCover, REVEAL } from './card-back';
 
 /**
@@ -177,6 +178,8 @@ function Front({
           {offer.name.toUpperCase()}
         </Text>
       </View>
+
+      <WishHeart skinUuid={offer.skinUuid} name={offer.name} size={15} style={styles.heart} />
     </View>
   );
 }
@@ -204,6 +207,7 @@ const styles = StyleSheet.create({
   priceLine: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   finalPrice: { fontSize: 15, lineHeight: 19 },
   strike: { textDecorationLine: 'line-through', fontSize: 11 },
-  nameBox: { position: 'absolute', left: space.sm, right: space.sm, bottom: space.md, alignItems: 'center' },
+  nameBox: { position: 'absolute', left: space.xl, right: space.xl, bottom: space.md, alignItems: 'center' },
+  heart: { position: 'absolute', right: space.xs, bottom: space.xs },
   name: { textAlign: 'center', letterSpacing: 0.6, fontSize: 12, lineHeight: 16 },
 });

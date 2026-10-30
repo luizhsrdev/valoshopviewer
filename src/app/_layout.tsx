@@ -1,6 +1,7 @@
 // A tarefa em segundo plano precisa ser definida no escopo global.
 import '@/lib/background';
 
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
 import * as Notifications from 'expo-notifications';
 import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
@@ -12,6 +13,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { SessionProvider, useSession } from '@/providers/session';
 import { ShopProvider } from '@/providers/shop';
+import { WishlistProvider } from '@/providers/wishlist';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -23,15 +25,17 @@ const navTheme = {
 };
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
+  const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, ...Ionicons.font });
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.canvas }}>
       <ThemeProvider value={navTheme}>
         <SessionProvider>
           <ShopProvider>
-            <StatusBar style="light" />
-            <Routes ready={fontsLoaded} />
+            <WishlistProvider>
+              <StatusBar style="light" />
+              <Routes ready={fontsLoaded} />
+            </WishlistProvider>
           </ShopProvider>
         </SessionProvider>
       </ThemeProvider>
@@ -55,6 +59,8 @@ function Routes({ ready }: { ready: boolean }) {
         <Stack.Screen name="index" />
         <Stack.Screen name="mercado" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="pacote/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="desejos" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="configuracoes" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="skin/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack.Protected>
       <Stack.Protected guard={status === 'consent'}>
@@ -73,7 +79,7 @@ function useNotificationRedirect(enabled: boolean) {
     if (!enabled) return;
     const go = (n: Notifications.Notification) => {
       const url = n.request.content.data?.url;
-      if (typeof url === 'string') router.push(url as '/mercado');
+      if (typeof url === 'string') router.navigate(url as '/mercado');
     };
     const last = Notifications.getLastNotificationResponse();
     if (last?.notification) {

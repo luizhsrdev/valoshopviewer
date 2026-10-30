@@ -6,6 +6,7 @@ import type { SkinOffer } from '@/lib/shop';
 import { colors, radius, rarityFallback, rarityGlow, space, withAlpha } from '@/theme';
 
 import { Skeleton } from '../skeleton';
+import { WishHeart } from '../wish-heart';
 import { Text } from '../text';
 
 export function OfferCard({ offer, onPress }: { offer: SkinOffer; onPress?(): void }) {
@@ -37,6 +38,7 @@ export function OfferCard({ offer, onPress }: { offer: SkinOffer; onPress?(): vo
       <Text variant="numeric" color={colors.body} style={styles.price}>
         {formatNumber(offer.price)} VP
       </Text>
+      <WishHeart skinUuid={offer.skinUuid} name={offer.name} size={16} style={styles.heart} />
     </Pressable>
   );
 }
@@ -69,4 +71,5 @@ const styles = StyleSheet.create({
   },
   image: { width: '88%', height: '80%' },
   price: { fontSize: 13 },
+  heart: { position: 'absolute', top: space.xs, right: space.xs },
 });

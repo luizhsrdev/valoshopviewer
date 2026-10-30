@@ -4,7 +4,7 @@ import { registerShopTask, unregisterShopTask } from '@/lib/background';
 import { acceptConsent, hasCurrentConsent } from '@/lib/consent';
 import { readDemo, writeDemo, type DemoState } from '@/lib/demo';
 import { clearRevealed } from '@/lib/night-market';
-import { setupNotifications } from '@/lib/notifications';
+import { cancelDailyReserve, setupNotifications } from '@/lib/notifications';
 import { clearSession, getAccount, hasSavedSession, type Account } from '@/lib/riot/session';
 import { keys, remove } from '@/lib/storage';
 
@@ -69,7 +69,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await unregisterShopTask().catch(() => {});
     await clearSession();
     await clearRevealed();
-    await remove(keys.shop, keys.nightNotified);
+    await remove(keys.shop, keys.nightNotified, keys.dailyNotified, keys.wishlistNotified);
+    await cancelDailyReserve();
     setAccount(null);
   }, []);
 

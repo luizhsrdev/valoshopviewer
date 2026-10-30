@@ -1,5 +1,6 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
@@ -16,20 +17,16 @@ import { openSkin } from '@/lib/skin-detail';
 import { activeNight, type SkinOffer } from '@/lib/shop';
 import { useSession } from '@/providers/session';
 import { useShop } from '@/providers/shop';
+import { useWishlist } from '@/providers/wishlist';
 import { colors, radius, space, withAlpha } from '@/theme';
 
 export default function Loja() {
-  const { account, demo, signOut } = useSession();
+  const { account, demo } = useSession();
+  const { ids: wishlist } = useWishlist();
   const { shop, loading, refreshing, error, refresh } = useShop();
   // Reavalia a cada 30 s se o mercado ainda está valendo.
   const now = useNow(30_000);
   const night = activeNight(shop, now);
-
-  const confirmSignOut = () =>
-    Alert.alert('Sair da conta?', 'Isso apaga a sessão e os dados salvos neste celular.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => signOut() },
-    ]);
 
   const who = demo?.enabled
     ? 'Modo demonstração'
@@ -59,12 +56,15 @@ export default function Loja() {
             </Text>
           </View>
           <View style={styles.topRight}>
+            <View style={styles.icons}>
+              <HeaderIcon
+                name={wishlist.size ? 'heart' : 'heart-outline'}
+                label={`Lista de desejos, ${wishlist.size} skins`}
+                onPress={() => router.push('/desejos')}
+              />
+              <HeaderIcon name="settings-outline" label="Configurações" onPress={() => router.push('/configuracoes')} />
+            </View>
             {shop ? <Wallet wallet={shop.wallet} /> : <Skeleton width={140} height={14} />}
-            <Pressable onPress={confirmSignOut} hitSlop={10} accessibilityRole="button">
-              <Text variant="caption" color={colors.mute}>
-                Sair
-              </Text>
-            </Pressable>
           </View>
         </View>
 
@@ -103,6 +103,19 @@ export default function Loja() {
         {__DEV__ ? <DevPanel /> : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function HeaderIcon({ name, label, onPress }: { name: keyof typeof Ionicons.glyphMap; label: string; onPress(): void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [styles.iconButton, pressed && { backgroundColor: colors.surfaceElevated }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}>
+      <Ionicons name={name} size={19} color={colors.mute} />
+    </Pressable>
   );
 }
 
@@ -166,7 +179,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { padding: space.lg, gap: space.lg, paddingBottom: space.section },
   top: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
-  topRight: { alignItems: 'flex-end', gap: space.sm, paddingTop: space.xs },
+  topRight: { alignItems: 'flex-end', gap: space.sm },
+  icons: { flexDirection: 'row', gap: space.xs, marginRight: -space.sm },
+  iconButton: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   staleBar: {
     flexDirection: 'row',
     alignItems: 'center',

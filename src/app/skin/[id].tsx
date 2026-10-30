@@ -10,6 +10,7 @@ import { VideoPlayer } from '@/components/skin/video-player';
 import { ZoomableImage } from '@/components/skin/zoomable-image';
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
+import { WishHeart } from '@/components/wish-heart';
 import { formatNumber } from '@/lib/format';
 import { loadSkinDetail, type SkinDetail } from '@/lib/skin-detail';
 import { colors, radius, space, withAlpha } from '@/theme';
@@ -94,9 +95,12 @@ export default function SkinScreen() {
         {detail ? (
           <>
             <View style={styles.titleBlock}>
-              <Text variant="display" color={colors.ink}>
-                {detail.name}
-              </Text>
+              <View style={styles.nameRow}>
+                <Text variant="display" color={colors.ink} style={{ flex: 1 }}>
+                  {detail.name}
+                </Text>
+                <WishHeart skinUuid={detail.uuid} name={detail.name} size={22} />
+              </View>
               {price ? (
                 <View style={styles.priceRow}>
                   <Text variant="numeric" color={colors.ink} style={styles.price}>
@@ -235,6 +239,7 @@ const styles = StyleSheet.create({
   hintBtn: { alignSelf: 'center', marginTop: -space.sm, paddingVertical: space.xs },
   error: { gap: space.md },
   titleBlock: { gap: space.sm },
+  nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   price: { fontSize: 20, lineHeight: 26 },
   strike: { textDecorationLine: 'line-through' },

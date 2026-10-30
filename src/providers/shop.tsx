@@ -12,7 +12,7 @@ import { AppState } from 'react-native';
 
 import { loadContent } from '@/lib/content';
 import { DEMO_PUUID, fetchDemoShop } from '@/lib/demo';
-import { maybeNotifyNightMarket } from '@/lib/notifications';
+import { notifyForShop } from '@/lib/notifications';
 import { SessionExpiredError } from '@/lib/riot/session';
 import { cacheShop, fetchShop, readCachedShop, type Shop } from '@/lib/shop';
 
@@ -83,7 +83,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         }
         if (stale()) return;
         setState({ owner: puuid, shop: next, error: null });
-        await maybeNotifyNightMarket(next, AppState.currentState === 'active');
+        await notifyForShop(next, { foreground: AppState.currentState === 'active' });
       } catch (e) {
         if (stale()) return;
         if (e instanceof SessionExpiredError) {

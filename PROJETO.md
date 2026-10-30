@@ -101,6 +101,8 @@ Requisitos técnicos: **notificações** e **tarefas em segundo plano** (por iss
     - **Nova tela de detalhes da skin** (seção 6.9).
 24. **Ícone com "X":** em algumas skins (ex.: Guardian Soberania), o `displayIcon` da valorant-api.com é um marcador "X" de arte faltando. Agora a imagem vem do render da primeira variante (`chromas[0].fullRender`), que existe nas 1.391 skins com raridade. A ordem é `fullRender` → ícone do nível 1 → `displayIcon`. O cache do catálogo foi para `content:v3`.
 25. Cartas reveladas do mercado redesenhadas no layout do jogo (seção 6.8).
+26. **Pacotes:** tela de detalhes (seção 6.10).
+27. **Lista de desejos e notificações** (seção 6.11), com o `@expo/vector-icons` instalado e o catálogo agrupado por arma (`content:v4`).
 23. Os caches mudaram de formato (`content:v2`, `shop:v2`). As chaves antigas são apagadas sozinhas.
 
 Verificações: `expo-doctor` passou nas 20/20 checagens; `npm run typecheck` e `npm run lint` passam sem erros; o bundle Android compila no Metro.
@@ -304,6 +306,32 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - As **cápsulas do VCT** são pacotes, então também abrem por aqui. As skins do VCT no catálogo são normais (todas Exclusive, com imagem).
 - **Demo:** cada pacote falso recebe as skins reais que levam o nome dele (154 de 329 pacotes acham pelo nome); senão, 4 skins sorteadas.
 
+## 6.11 Lista de desejos e notificações
+
+**Lista de desejos** (`wishlist:v1` no AsyncStorage, só no celular):
+- Há um coração em cada skin: nos cards da loja diária e do pacote (canto superior direito), nas cartas reveladas do mercado (canto inferior direito) e nos detalhes da skin (ao lado do nome). Ele fica vermelho quando a skin está na lista.
+- A tela **`/desejos`** abre pelo ícone de coração no topo da Loja e tem duas abas:
+  - **"Minha lista"**: as skins salvas, com "Na sua loja hoje" ou "No seu mercado noturno" em vermelho quando aparecem.
+  - **"Catálogo"**: todas as skins com raridade (as padrão e as de passe nunca saem na loja), com busca por nome que ignora acentos e filtro por arma (pistolas → corpo a corpo).
+- O catálogo agora vem de `/v1/weapons` (as mesmas skins, agrupadas por arma); o cache foi para `content:v4`.
+- Os ícones vêm do `@expo/vector-icons` (Ionicons), que é JavaScript mais fontes e não exige build novo.
+
+**Avisos** (`notifications.ts`):
+- **Lista de desejos (em destaque):** canal próprio "Lista de desejos", com importância máxima. "Vandal X está na sua loja!" ou "…no seu mercado noturno" (com desconto e preço). Se houver várias, junta numa só. O toque abre a loja ou o mercado.
+- **"Sua loja mudou"** com os nomes das 4 skins. O toque abre a loja.
+- **Mercado noturno aberto**, com deep link para `/mercado`.
+- **Sem repetição:** cada loja, combinação de desejos e mercado é avisada uma vez (`daily:notified`, `wishlist:notified`, `night:notified`).
+- **Em primeiro plano não avisa**, porque a tela já mostra tudo; o handler também silencia a reserva e o mercado com o app aberto.
+- **Tarefa em segundo plano** (`background.ts`, a cada ~30 min, quando o Android deixar): só busca a loja depois da troca, ou se o cache tiver mais de 3 h (para pegar o mercado noturno). Renova o token pelo `ssid` e avisa.
+- **Reserva:** avisos locais "Sua loja mudou · Quatro skins novas" ficam agendados para as **próximas 7 trocas** (00:00 UTC + 1 min, um identificador por dia). Se a tarefa chega antes, cancela a reserva daquele dia e manda os nomes; se a reserva já tocou, a tarefa não repete. A lista de reservas agendadas (`daily:reserved`) evita confundir "já tocou" com "nunca foi agendada".
+- **Configurações** (`/configuracoes`, ícone de engrenagem):
+  - liga e desliga cada tipo de aviso (`settings:notifications:v1`);
+  - mostra o aviso "o aviso pode chegar alguns minutos depois";
+  - pede a permissão se ela foi negada;
+  - avisa se o Android restringir o app em segundo plano;
+  - tem o botão **Sair**, que saiu do topo da Loja. A lista de desejos sobrevive ao Sair.
+- **Demo / painel de desenvolvimento:** "Avisos da loja em 5 s" (zera o que já foi avisado e manda loja, desejos e mercado) e "Mercado noturno em 5 s". Na demo, a tarefa em segundo plano roda o mesmo fluxo de avisos com a loja falsa.
+
 ## 7. Regras do projeto
 
 - Instalar dependências **sempre** com `npx expo install <pacote>`.
@@ -365,8 +393,6 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 
 ### Futuras (a avaliar)
 - Loja de acessórios (`AccessoryStore`): os dados já vêm na v3.
-- Lista de desejos + notificação quando uma skin desejada aparecer na loja diária.
-- Notificação opcional na troca da loja diária (21:00 de Brasília).
 - Botão "Revelar todas" no mercado.
 - Trocar a superfície da WebView pelo `expo-video` (exige build novo), mantendo os controles próprios: decodificação nativa, PiP e cache de vídeo. Junto, o `expo-screen-orientation` para uma tela cheia com rotação de verdade.
 - Economia de dados nos vídeos: avisar o tamanho antes de tocar no 4G/5G, ou uma opção "só tocar vídeos no Wi-Fi" (os vídeos têm de 8 a 46 MB).
@@ -389,6 +415,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - [x] `.gitignore` reforçado para segredos
 - [x] Logado no Expo (`luizhsnn`); projeto EAS criado e vinculado; EAS Update configurado
 - [x] Tema, boas-vindas, login, Loja, mercado noturno, notificação com deep link, tarefa em segundo plano e modo demo
+- [x] Detalhes da skin e do pacote, lista de desejos com catálogo, avisos (loja, desejos, mercado) e configurações
 
 ### ⏳ Falta você fazer
 - [ ] Rodar o primeiro build de dev: `npx eas-cli@latest build -p android --profile development` (responda **Yes** para gerar a keystore)

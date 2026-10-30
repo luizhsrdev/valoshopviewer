@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { newDemoState } from '@/lib/demo';
 import { clearRevealed } from '@/lib/night-market';
-import { notifyNightMarket, setupNotifications } from '@/lib/notifications';
+import { notifyForShop, notifyNightMarket, resetNotified, setupNotifications } from '@/lib/notifications';
 import { keys, remove } from '@/lib/storage';
 import { useSession } from '@/providers/session';
 import { useShop } from '@/providers/shop';
@@ -48,12 +48,22 @@ export function DevPanel() {
       },
     },
     {
-      label: 'Notificação em 5 s',
+      label: 'Mercado noturno em 5 s',
       run: async () => {
         if (!(await setupNotifications())) return setMsg('Permissão de notificação negada.');
         await remove(keys.nightNotified);
         await notifyNightMarket(shop?.night?.endsAt ?? Date.now() + 3 * 86_400_000, 5);
         setMsg('Saia do app: a notificação chega em 5 s. Toque nela para abrir o mercado.');
+      },
+    },
+    {
+      label: 'Avisos da loja em 5 s',
+      run: async () => {
+        if (!shop) return setMsg('A loja ainda não carregou.');
+        if (!(await setupNotifications())) return setMsg('Permissão de notificação negada.');
+        await resetNotified();
+        await notifyForShop(shop, { foreground: false, delaySeconds: 5 });
+        setMsg('Saia do app: chegam "Sua loja mudou", o mercado e, se houver, a lista de desejos (marque o coração de uma skin da loja antes).');
       },
     },
     {

@@ -12,13 +12,24 @@ const LANG = 'language=pt-BR';
 
 export type Tier = { uuid: string; name: string; color: string; rank: number };
 
-export type SkinInfo = { uuid: string; name: string; image: string | null; tierUuid: string | null };
+export type SkinInfo = {
+  uuid: string;
+  name: string;
+  image: string | null;
+  tierUuid: string | null;
+  /** Índice em `weapons`. */
+  weapon: number;
+};
+
+export type WeaponInfo = { uuid: string; name: string; category: string };
 
 export type Content = {
   version: string;
   /** Usado no cabeçalho X-Riot-ClientVersion. */
   riotClientVersion: string;
   tiers: Record<string, Tier>;
+  /** Na ordem do filtro: pistolas, submetralhadoras, escopetas, fuzis, snipers, metralhadoras, corpo a corpo. */
+  weapons: WeaponInfo[];
   skins: SkinInfo[];
   /** UUID do nível de skin (é o ItemID das ofertas) → índice em `skins`. */
   levelToSkin: Record<string, number>;
@@ -44,20 +55,26 @@ const TIER_NAMES: Record<string, string> = {
 };
 
 async function download(version: string, riotClientVersion: string): Promise<Content> {
-  const [tiersRes, skinsRes, bundlesRes] = await Promise.all([
+  const [tiersRes, weaponsRes, bundlesRes] = await Promise.all([
     get<ApiList<{ uuid: string; devName: string; rank: number; highlightColor: string }>>(
       `/contenttiers?${LANG}`,
     ),
+    // /weapons traz as mesmas skins de /weapons/skins, já agrupadas por arma (para o filtro).
     get<
       ApiList<{
         uuid: string;
         displayName: string;
-        contentTierUuid: string | null;
-        displayIcon: string | null;
-        levels: { uuid: string; displayIcon: string | null }[];
-        chromas: { fullRender: string | null; displayIcon: string | null }[];
+        category: string;
+        skins: {
+          uuid: string;
+          displayName: string;
+          contentTierUuid: string | null;
+          displayIcon: string | null;
+          levels: { uuid: string; displayIcon: string | null }[];
+          chromas: { fullRender: string | null; displayIcon: string | null }[];
+        }[];
       }>
-    >(`/weapons/skins?${LANG}`),
+    >(`/weapons?${LANG}`),
     get<ApiList<{ uuid: string; displayName: string; displayIcon: string | null }>>(
       `/bundles?${LANG}`,
     ),
@@ -73,26 +90,41 @@ async function download(version: string, riotClientVersion: string): Promise<Con
     };
   }
 
+  const order = ['Sidearm', 'SMG', 'Shotgun', 'Rifle', 'Sniper', 'Heavy', 'Melee'];
+  const rank = (category: string) => {
+    const i = order.indexOf(category.split('::')[1] ?? category);
+    return i === -1 ? order.length : i;
+  };
+  const sortedWeapons = [...weaponsRes.data].sort(
+    (a, b) => rank(a.category) - rank(b.category) || a.displayName.localeCompare(b.displayName, 'pt-BR'),
+  );
+
   // Compacto de propósito: o AsyncStorage do Android tem limite por item.
+  const weapons: WeaponInfo[] = [];
   const skins: SkinInfo[] = [];
   const levelToSkin: Content['levelToSkin'] = {};
-  for (const s of skinsRes.data) {
-    const index = skins.length;
-    skins.push({
-      uuid: s.uuid,
-      name: s.displayName,
-      // O displayIcon da skin às vezes é um "X" (arte faltando na valorant-api);
-      // o render da primeira variante é sempre a arma de verdade.
-      image: s.chromas[0]?.fullRender ?? s.levels[0]?.displayIcon ?? s.displayIcon ?? null,
-      tierUuid: s.contentTierUuid,
-    });
-    for (const level of s.levels) levelToSkin[level.uuid] = index;
+  for (const w of sortedWeapons) {
+    const weapon = weapons.length;
+    weapons.push({ uuid: w.uuid, name: w.displayName, category: w.category.split('::')[1] ?? w.category });
+    for (const s of w.skins) {
+      const index = skins.length;
+      skins.push({
+        uuid: s.uuid,
+        name: s.displayName,
+        // O displayIcon da skin às vezes é um "X" (arte faltando na valorant-api);
+        // o render da primeira variante é sempre a arma de verdade.
+        image: s.chromas[0]?.fullRender ?? s.levels[0]?.displayIcon ?? s.displayIcon ?? null,
+        tierUuid: s.contentTierUuid,
+        weapon,
+      });
+      for (const level of s.levels) levelToSkin[level.uuid] = index;
+    }
   }
 
   const bundles: Content['bundles'] = {};
   for (const b of bundlesRes.data) bundles[b.uuid] = { name: b.displayName, image: b.displayIcon };
 
-  return { version, riotClientVersion, tiers, skins, levelToSkin, bundles };
+  return { version, riotClientVersion, tiers, weapons, skins, levelToSkin, bundles };
 }
 
 let memory: Content | null = null;
