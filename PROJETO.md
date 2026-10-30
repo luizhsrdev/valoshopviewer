@@ -1,7 +1,7 @@
 # Minha Loja — documento do projeto
 
 > Documento vivo: tudo sobre o app, o ambiente, as decisões tomadas, ideias arquivadas e ideias futuras.
-> Última atualização: 2026-10-29. Fase 1: tema proposto, API confirmada e telas ainda não codadas.
+> Última atualização: 2026-10-29. Fase 1 (loja) e mercado noturno implementados.
 
 ---
 
@@ -83,8 +83,25 @@ Requisitos técnicos: **notificações** e **tarefas em segundo plano** (por iss
 13. Instalei a `@expo-google-fonts/inter`.
 14. Confirmei o estado atual da API (seção 6.5).
 
-Verificações: `expo-doctor` passou nas 20/20 checagens; `expo config` confirma o nome, o package e o scheme corretos nas duas variantes.
-Pendência conhecida: `tsc --noEmit` acusa **1 erro em `src/components/app-tabs.web.tsx`**, que vem do próprio template (componente só para web). Deve sumir quando trocarmos as telas de exemplo com `npm run reset-project`.
+### 2026-10-29 — fase 1 completa + mercado noturno
+15. Removi as telas e os componentes de exemplo do template (e o `scripts/reset-project.js`). Com isso sumiu o erro de tipos do template.
+16. Instalei `react-native-webview`, `expo-secure-store`, `expo-notifications`, `expo-background-task`, `expo-task-manager`, `@react-native-async-storage/async-storage` e `expo-linear-gradient`. O `npx expo lint` instalou `eslint` e `eslint-config-expo`.
+17. Criei o módulo nativo local **`modules/riot-cookies`** (Kotlin, só Android). Ele lê, grava e apaga cookies do `CookieManager`, inclusive os HttpOnly. Substitui a `@react-native-cookies/cookies`, que não é mantida.
+18. `app.json`: tudo escuro (splash, fundo, ícone adaptativo), `platforms: ["android"]` e plugins `expo-secure-store`, `expo-notifications` (ícone monocromático, cor `#FF4655`, canal `loja`), `expo-background-task` e `expo-font`.
+19. Escrevi as telas de boas-vindas, login, Loja e mercado noturno, e as camadas de sessão, API, catálogo, cache, notificações, tarefa em segundo plano e demo (seção 6.7).
+20. **Ainda não testado em aparelho.** O build local de debug foi interrompido: o React Native 0.88 exige o NDK 27.1.12297006 e o compileSdk 37, e o Gradle começou a baixar o NDK sozinho (~2-3 GB) sem autorização. Ficou uma pasta parcial vazia em `~/Library/Android/sdk/ndk/27.1.12297006` (pode ser apagada).
+
+### 2026-10-29 — primeiro teste no celular + ajustes
+21. **Testado no celular** (development build do EAS, Metro pelo QR code na mesma rede), em modo demonstração. Boas-vindas, aceite, banner do mercado e revelação uma a uma funcionando. Login real ainda não testado.
+22. Pedidos do teste, já atendidos:
+    - O verso das cartas agora mostra a cor da raridade antes de revelar, como no jogo.
+    - O brilho da revelação estava fora do centro; agora fica centralizado na carta.
+    - Removi o ripple do toque do Android, que nascia no ponto tocado.
+    - Removi os nomes de raridade (Select, Exclusive etc.) da tela. A cor continua indicando a raridade.
+    - **Nova tela de detalhes da skin** (seção 6.9).
+23. Os caches mudaram de formato (`content:v2`, `shop:v2`). As chaves antigas são apagadas sozinhas.
+
+Verificações: `expo-doctor` passou nas 20/20 checagens; `npm run typecheck` e `npm run lint` passam sem erros; o bundle Android compila no Metro.
 
 ---
 
@@ -140,6 +157,13 @@ npm run start:dev
 4. `adb reverse tcp:8081 tcp:8081` (o `localhost:8081` do celular passa a ser o Mac).
 5. No app dev, conecte em `http://localhost:8081`, ou aperte `a` no terminal do Metro.
 
+**Erro "Unable to load script" (2026-10-29):** o app instalou e abriu, mas não alcançou o Metro. Diagnóstico no Mac:
+- O Metro não estava rodando.
+- O Mac está na rede pela `en6` (cabo, IP `192.168.3.236`), então o celular precisa estar no Wi-Fi da mesma rede `192.168.3.x`.
+- Firewall desligado, sem VPN. Com o Metro de pé, ele responde em `http://192.168.3.236:8081/status` e o bundle Android compila sem erros (HTTP 200).
+
+Para resolver: deixe o `npm run start:dev` aberto no terminal e conecte digitando a URL no app. Se ainda falhar, use `--tunnel` ou o cabo USB com `adb reverse`.
+
 ### 6.3 Emulador
 O AVD `Pixel_3_API_35` já existe. Sem o Android Studio:
 ```sh
@@ -185,6 +209,69 @@ O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que est�
 - Fonte Inter (`@expo-google-fonts/inter`), sem o `ss03`, que o RN não suporta no Android. Números com `tabular-nums`.
 - Nenhum logo, fonte ou arte da Riot. As únicas imagens são de skins e pacotes da valorant-api.com, e as moedas aparecem como texto (VP/RAD/KC).
 
+## 6.7 Arquitetura do app
+
+```
+src/
+  app/                    rotas (expo-router)
+    _layout.tsx           fontes, splash, providers, rotas protegidas, deep link da notificação
+    boas-vindas.tsx       aviso + aceite (versão do texto em lib/consent.ts)
+    login.tsx             WebView oficial da Riot; botão de demo só em dev
+    index.tsx             Loja (tela principal)
+    mercado.tsx           mercado noturno (tela separada)
+  components/             UI (text, button, countdown, skeleton, store/*, night-market/*)
+  lib/
+    riot/                 constants, types, session (tokens/cookies/reauth), api (storefront v3, wallet)
+    content.ts            catálogo valorant-api.com (pt-BR), cache compacto por versão do jogo
+    shop.ts               modelo da loja + cache
+    night-market.ts       cartas reveladas + "já avisei deste mercado"
+    notifications.ts      canal, permissão, aviso do mercado (data.url = /mercado)
+    background.ts         tarefa periódica (30 min, WorkManager)
+    demo.ts               loja falsa (somente __DEV__)
+    consent.ts, format.ts, storage.ts
+  providers/              session (estado de login) e shop (dados, refresh, timers)
+  theme/                  tokens do tema
+modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
+```
+
+**Fluxo de sessão:**
+1. O app abre e confere o aceite. Se a versão aceita for antiga, mostra as boas-vindas.
+2. Sem sessão salva, vai para o login.
+3. No login, a WebView da Riot redireciona para `playvalorant.com/opt_in#access_token=…`. O app intercepta esse redirecionamento, pega os entitlements, a conta (userinfo) e o shard (riot-geo), e copia os cookies do CookieManager para o SecureStore.
+4. Nas aberturas seguintes, o `fetch` vai em `/authorize`: o cookie jar do Android é o mesmo da WebView, e a URL final traz os tokens. Depois de cada renovação, os cookies rotacionados são salvos de novo.
+5. Se a renovação cair no login da Riot, a sessão é apagada e o app volta para o login com o aviso "Sua sessão expirou". Falta de internet **não** desloga.
+6. **Sair** apaga cookies (SecureStore e CookieManager), conta, cache, cartas e a tarefa em segundo plano.
+- Tokens só em memória. Nada de `console.log` com token, cookie ou URL de redirecionamento.
+
+**Loja:** abre na hora com o cache (AsyncStorage) e atualiza por trás. Também atualiza ao puxar a tela, quando qualquer contagem zera (diária, pacote ou mercado) e ao voltar para o primeiro plano depois de uma troca. O skeleton aparece só sem cache. Com cache e erro, aparece uma faixa "Mostrando a loja das HH:MM" com "Tentar de novo".
+
+## 6.8 Mercado noturno
+
+- **Nunca** aparece na tela da loja. Na loja fica só o banner "Mercado noturno disponível" com o tempo restante, que abre a rota `/mercado`.
+- **Notificação:** a tarefa em segundo plano (a cada ~30 min) e o refresh em primeiro plano detectam o `BonusStore`. Cada mercado é avisado uma vez, identificado pelos IDs das ofertas. Em primeiro plano não notifica, porque o banner já aparece. Ao tocar, `data.url = "/mercado"` abre a tela direto, inclusive com o app fechado.
+- **Cartas:** são 6, com verso próprio (moldura com cantos marcados, dois losangos concêntricos e hachura sutil), sem arte da Riot. **Como no jogo, o verso já mostra a cor da raridade**: gradiente, moldura, losangos e borda na cor. A skin só aparece ao revelar.
+- **Revelação** (reanimated, só `transform`/`opacity` na thread de UI):
+  1. Flip 3D de 560 ms. As faces trocam em 90°, o que é mais confiável no Android do que `backfaceVisibility`.
+  2. Brilho na cor da raridade, feito de 3 círculos concêntricos **centralizados na carta**. Começa em 220 ms: sobe em 420 ms e assenta em 700 ms. O pico e a escala crescem com a raridade (Select 0,30 → Ultra 0,86 de opacidade; escala 1,0 → 1,72).
+  3. Conteúdo aos 500 ms: raridade, skin e nome, com o preço original riscado.
+  4. Selo de desconto aos 760 ms, com mola.
+  5. Preço final aos 860 ms.
+- A carta revelada fica com borda (60%) e fundo (8%) na cor da raridade. **Sem o nome da raridade**: a cor basta. Tocar numa carta revelada abre os detalhes da skin.
+- **Persistência:** os `BonusOfferID` revelados ficam no AsyncStorage com o `endsAt` do mercado e expiram com ele. Ao reabrir, as cartas já reveladas aparecem sem animação.
+- **"Remover animações"** do Android (`useReducedMotion`): revela na hora, sem flip nem brilho, e os skeletons e o banner param de pulsar.
+- As imagens são pré-carregadas (`Image.prefetch`) ao abrir a tela, para a revelação não esperar a rede.
+- **Modo demonstração (só `__DEV__`):** botão "Entrar no modo demonstração (dev)" no login, mais o painel "Ferramentas de desenvolvimento" no fim da loja. O painel tem: ligar/desligar a demo, gerar um novo mercado, abrir/fechar o mercado, resetar as cartas, notificação em 5 s (para testar o deep link) e rodar a tarefa em segundo plano. A demo usa skins reais do catálogo, uma de cada raridade mais uma extra, e não toca na API da Riot.
+
+## 6.9 Detalhes da skin
+
+- Abre ao tocar num card da loja diária ou numa carta revelada do mercado. Fica na rota `/skin/[id]`, num modal que sobe de baixo. O preço vem da tela de origem (no mercado: preço final, original riscado e desconto).
+- Os dados são baixados sob demanda de `valorant-api.com/v1/weapons/skins/{uuid}?language=pt-BR` e guardados em memória.
+- **Imagem grande com zoom:** pinça até 4x, arrastar quando ampliada e toque duplo para 2,5x. O fundo leva um gradiente na cor da raridade.
+- **Variantes (chromas):** miniaturas que trocam a imagem, mais o botão "Ver vídeo" quando a variante tem vídeo.
+- **Níveis:** "Nível N · o que desbloqueia", com os rótulos traduzidos (efeitos visuais, animação, efeitos sonoros, finalização, banner de abate…). Tocar abre o vídeo de demonstração do nível.
+- **Vídeos:** tocam numa WebView com `<video>` nativo, com tela cheia e controles, porque a WebView já está no build. Assim não precisou de build novo. O `expo-video` fica como melhoria futura.
+- Os pacotes ainda não abrem detalhes, porque os itens do pacote não são guardados no modelo.
+
 ## 7. Regras do projeto
 
 - Instalar dependências **sempre** com `npx expo install <pacote>`.
@@ -207,6 +294,14 @@ O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que est�
 - Storefront **v3 (POST)** no lugar da v2.
 - Mapear `br`/`latam` → shard `na`.
 - Tema Raycast + acento `#FF4655` + raridade como destaque.
+- Módulo nativo próprio (`modules/riot-cookies`) para ler e gravar os cookies HttpOnly.
+- Reautenticação por `fetch` no `/authorize`, usando o cookie jar compartilhado com a WebView. Se o `fetch` perder o fragmento, o plano B é a própria tela de login, que passa sozinha quando o cookie é válido.
+- Estado (sessão, loja) com Context simples, sem biblioteca de estado.
+- Mercado noturno numa rota própria (`/mercado`), com deep link pela notificação.
+- Cache do catálogo compacto (~400 KB), por causa do limite por item do AsyncStorage no Android.
+- Verso da carta na cor da raridade (fiel ao jogo).
+- Raridade só pela cor, sem o nome.
+- Vídeos de skin pela WebView (sem build nativo novo).
 
 ### Depreciadas / arquivadas
 - **Storefront v2 (GET)**: substituída pela v3.
@@ -217,18 +312,28 @@ O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que est�
 - **Node 26**: descartado por não ser LTS; trocado pelo Node 24 LTS.
 - **Perfil `preview`** (variante intermediária `.preview`): não criado por enquanto. O perfil `apk` cobre a distribuição.
 - **AAB / Google Play**: fora do escopo. A distribuição é só por APK.
-- **Build local** (`expo run:android`): só como plano B; o padrão é o EAS na nuvem.
+- **Build local** (`expo run:android`): usado só para testar no emulador; a distribuição continua pelo EAS na nuvem.
+- **`@react-native-cookies/cookies`**: sem manutenção desde 2022 e sem garantia na New Architecture. Trocado pelo módulo local.
+- **`backfaceVisibility` no flip**: instável no Android. Trocado pela troca de opacidade em 90°.
+- **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
+- **Mercado noturno na mesma tela da loja**: proibido por regra do produto. Só o banner.
+- **Telas de exemplo do template (tabs, explore)**: removidas.
+- **Verso neutro, sem cor**: trocado pelo verso na cor da raridade, a pedido, porque o jogo mostra a cor antes de revelar.
+- **Rótulos com o nome da raridade** (SELECT, EXCLUSIVE…) nos cards: removidos a pedido.
+- **Ripple do Android nas cartas**: removido (nascia no ponto tocado, parecia descentralizado).
 
 ### Futuras (a avaliar)
-- Mercado noturno (`BonusStore`) e loja de acessórios (`AccessoryStore`): os dados já vêm na v3.
-- Notificação quando a loja trocar ou quando uma skin da lista de desejos aparecer.
-- Definir as funcionalidades da "Minha Loja" (próximos prompts).
-- Armazenamento local: `expo-sqlite` (dados relacionais) e/ou `expo-secure-store` (dados sensíveis); backup/exportação manual (arquivo JSON via `expo-sharing`/`expo-file-system`).
-- Notificações locais com `expo-notifications` e tarefas periódicas com `expo-background-task`.
+- Loja de acessórios (`AccessoryStore`): os dados já vêm na v3.
+- Lista de desejos + notificação quando uma skin desejada aparecer na loja diária.
+- Notificação opcional na troca da loja diária (21:00 de Brasília).
+- Botão "Revelar todas" no mercado.
+- Trocar o player da WebView pelo `expo-video` (exige build novo): tela cheia nativa, PiP e cache.
+- Detalhes do pacote (lista das skins do pacote, cada uma abrindo a tela de detalhes).
+- Toque leve (haptics) na revelação, mais forte para Exclusive e Ultra.
+- Aviso de "otimização de bateria" para a tarefa em segundo plano em celulares agressivos (Xiaomi, Samsung).
 - Ícones e splash próprios, separando dev e release (ex.: ícone com selo "DEV" no `app.config.ts`).
 - Perfil `preview` se surgir a necessidade de testadores.
 - Pequeno fluxo de CI (lint/typecheck) no GitHub Actions.
-- Rodar `npm run reset-project` para limpar as telas de exemplo do template.
 
 ---
 
@@ -242,6 +347,7 @@ O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que est�
 - [x] `eas.json` com os perfis `development` e `apk` e seus canais
 - [x] `.gitignore` reforçado para segredos
 - [x] Logado no Expo (`luizhsnn`); projeto EAS criado e vinculado; EAS Update configurado
+- [x] Tema, boas-vindas, login, Loja, mercado noturno, notificação com deep link, tarefa em segundo plano e modo demo
 
 ### ⏳ Falta você fazer
 - [ ] Rodar o primeiro build de dev: `npx eas-cli@latest build -p android --profile development` (responda **Yes** para gerar a keystore)
@@ -251,4 +357,5 @@ O arquivo é `src/theme/index.ts`, traduzido do `DESIGN.md` do Raycast (que est�
 - [ ] (Opcional) Reinstalar o Android Studio para ter a interface gráfica
 - [ ] **GitHub:** o remote `origin` aponta para `luizhsrdev/valoshopviewer`, que hoje está **PÚBLICO** e vazio (e o nome é diferente da pasta, `valshopviewer`). Se quiser privado: `gh repo edit luizhsrdev/valoshopviewer --visibility private --accept-visibility-change-consequences`
 - [ ] Decidir sobre o `LICENSE` (MIT) que veio do template, num app privado
-- [ ] Primeiro commit, quando você quiser (nada foi commitado)
+- [ ] Testar o login real com sua conta no celular (a reautenticação por cookie só se confirma com uma conta de verdade)
+- [ ] Commits: você faz quando quiser (eu não commito)

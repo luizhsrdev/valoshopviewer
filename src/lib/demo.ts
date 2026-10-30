@@ -1,0 +1,125 @@
+/**
+ * Modo de demonstração (somente em desenvolvimento): uma loja falsa, com
+ * mercado noturno, montada com skins reais do catálogo da valorant-api.com.
+ * Em builds de produção (`__DEV__ === false`) tudo aqui fica desligado.
+ */
+import { loadContent, type Content } from './content';
+import type { FeaturedBundle, NightOffer, Shop, SkinOffer } from './shop';
+import { keys, readJson, writeJson } from './storage';
+
+export const DEMO_PUUID = 'demo';
+
+export type DemoState = { enabled: boolean; seed: number; createdAt: number; night: boolean };
+
+const DAY = 86_400_000;
+
+export async function readDemo(): Promise<DemoState | null> {
+  if (!__DEV__) return null;
+  return readJson<DemoState>(keys.demo);
+}
+
+export async function isDemoEnabled(): Promise<boolean> {
+  return !!(await readDemo())?.enabled;
+}
+
+export async function writeDemo(state: DemoState | null): Promise<void> {
+  if (!__DEV__) return;
+  await writeJson(keys.demo, state);
+}
+
+export function newDemoState(night = true): DemoState {
+  return { enabled: true, seed: Math.floor(Math.random() * 1e9), createdAt: Date.now(), night };
+}
+
+/** Gerador pseudoaleatório determinístico: mesma semente → mesma loja. */
+function rng(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Preços típicos por raridade (em VP). */
+const PRICE_BY_RANK = [875, 1275, 1775, 2175, 2475];
+
+function nextUtcMidnight(now: number) {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
+
+export function buildDemoShop(content: Content, state: DemoState, now = Date.now()): Shop {
+  const rand = rng(state.seed);
+  const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)]!;
+
+  const tiers = Object.values(content.tiers).sort((a, b) => a.rank - b.rank);
+  const withImage = content.skins.filter((s) => s.image && s.tierUuid);
+  const byTier = (uuid: string) => withImage.filter((s) => s.tierUuid === uuid);
+  const skinOfRank = (rank: number) => {
+    const tier = tiers[Math.min(rank, tiers.length - 1)]!;
+    const skin = pick(byTier(tier.uuid));
+    return { skin, tier };
+  };
+
+  const bundleEntries = Object.entries(content.bundles).filter(([, b]) => b.image);
+  const bundles: FeaturedBundle[] = [0, 1].map((i) => {
+    const [id, b] = pick(bundleEntries);
+    return {
+      id: `demo-bundle-${state.seed}-${i}-${id}`,
+      name: b.name,
+      image: b.image,
+      price: i === 0 ? 7100 : 5350,
+      basePrice: i === 0 ? 9500 : null,
+      endsAt: state.createdAt + (i === 0 ? 5 : 2) * DAY + 6 * 3_600_000,
+    };
+  });
+
+  const daily: SkinOffer[] = [3, 2, 1, 0].map((rank, i) => {
+    const { skin, tier } = skinOfRank(rank);
+    return {
+      id: `demo-daily-${state.seed}-${i}`,
+      skinUuid: skin.uuid,
+      name: skin.name,
+      image: skin.image,
+      price: PRICE_BY_RANK[rank]!,
+      tier,
+    };
+  });
+
+  // Uma carta de cada raridade + uma extra aleatória, embaralhadas.
+  const ranks = [0, 1, 2, 3, 4, Math.floor(rand() * 5)].sort(() => rand() - 0.5);
+  const nightOffers: NightOffer[] = ranks.map((rank, i) => {
+    const { skin, tier } = skinOfRank(rank);
+    const basePrice = PRICE_BY_RANK[rank]!;
+    const discountPercent = 10 + Math.floor(rand() * 40);
+    return {
+      id: `demo-night-${state.seed}-${i}`,
+      skinUuid: skin.uuid,
+      name: skin.name,
+      image: skin.image,
+      tier,
+      basePrice,
+      discountPercent,
+      finalPrice: Math.round((basePrice * (100 - discountPercent)) / 100 / 5) * 5,
+    };
+  });
+
+  return {
+    puuid: DEMO_PUUID,
+    fetchedAt: now,
+    wallet: { vp: 2340, rad: 85, kc: 4210 },
+    bundles,
+    daily: { offers: daily, endsAt: nextUtcMidnight(now) },
+    night: state.night ? { offers: nightOffers, endsAt: state.createdAt + 3 * DAY } : null,
+  };
+}
+
+export async function fetchDemoShop(state: DemoState): Promise<Shop> {
+  const content = await loadContent();
+  // Simula a latência da rede para ver o skeleton.
+  await new Promise((r) => setTimeout(r, 700));
+  return buildDemoShop(content, state);
+}
