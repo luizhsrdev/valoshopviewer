@@ -18,8 +18,8 @@ import { colors, withAlpha } from '@/theme';
  * 4. os losangos se desfazem do centro para os cantos, revelando a skin, que
  *    já está pronta por baixo.
  *
- * Desempenho: cada losango é uma base fixa + uma camada clara por cima; só se
- * animam opacidade e escala (nada de interpolar cor a cada quadro).
+ * Desempenho: 49 losangos, uma View cada, sem borda, animando só opacidade
+ * e escala. O tom escuro é um fundo único por trás deles. Ver PROJETO.md 6.12.
  */
 
 export const REVEAL = {
@@ -63,37 +63,27 @@ type Tile = { key: string; x: number; y: number; onX: boolean; xAt: number; litA
 
 /**
  * Grade de losangos que cobre a carta inteira: quadrados girados 45°, com
- * centros em (i·d/2, j·d/2) e i + j par, encaixam sem buracos. O X são os
- * losangos com |Δi| = |Δj| a partir do losango central.
+ * centros em (cx + i·d/2, cy + j·d/2) e i + j par, encaixam sem buracos.
+ * A grade é ancorada no centro da carta, então sempre há um losango
+ * exatamente no meio e o X sai simétrico. O X são os losangos com |i| = |j|.
  */
 function buildTiles(width: number, height: number, diagonal: number): Tile[] {
   const half = diagonal / 2;
   const cx = width / 2;
   const cy = height / 2;
-
-  // Losango central: o vizinho válido (i + j par) mais próximo do centro.
-  let ci = 0;
-  let cj = 0;
-  let best = Infinity;
-  for (const i of [Math.floor(cx / half), Math.ceil(cx / half)]) {
-    for (const j of [Math.floor(cy / half), Math.ceil(cy / half)]) {
-      const dist = Math.hypot(i * half - cx, j * half - cy);
-      if ((i + j) % 2 === 0 && dist < best) {
-        best = dist;
-        ci = i;
-        cj = j;
-      }
-    }
-  }
+  const ni = Math.ceil(cx / half) + 1;
+  const nj = Math.ceil(cy / half) + 1;
 
   const raw: { key: string; x: number; y: number; k: number; e: number; r: number; onX: boolean }[] = [];
-  for (let i = -1; i <= Math.ceil(width / half) + 1; i++) {
-    for (let j = -1; j <= Math.ceil(height / half) + 1; j++) {
+  for (let i = -ni; i <= ni; i++) {
+    for (let j = -nj; j <= nj; j++) {
       if ((i + j) % 2 !== 0) continue;
-      const di = Math.abs(i - ci);
-      const dj = Math.abs(j - cj);
-      const x = i * half;
-      const y = j * half;
+      const x = cx + i * half;
+      const y = cy + j * half;
+      // Fora dessa margem o losango não encosta na carta.
+      if (x < -half || x > width + half || y < -half || y > height + half) continue;
+      const di = Math.abs(i);
+      const dj = Math.abs(j);
       raw.push({
         key: `${i}:${j}`,
         x,
@@ -134,29 +124,33 @@ type Props = {
 export const CardCover = memo(function CardCover({ color, rank, width, height, clock }: Props) {
   const tint = color ?? colors.mute;
   const base = mix(tint, colors.canvas, 0.62);
-  // Contorno entre os losangos bem discreto.
-  const line = 'rgba(0,0,0,0.035)';
-  const diagonal = Math.max(28, width / 4);
+  // 49 losangos (~60% dos 83 de antes): cada um é uma View animada, e o custo
+  // cresce com a quantidade. Com a grade centrada, a quantidade sobe em degraus (25, 49, 59…).
+  const diagonal = Math.max(28, width / 3.2);
   const size = (diagonal / Math.SQRT2) * 1.06; // sobreposição evita frestas
   const tiles = useMemo(() => (width > 0 ? buildTiles(width, height, diagonal) : []), [width, height, diagonal]);
 
   return (
-    // Sem fundo próprio: quando um losango some, aparece a skin por baixo.
-    <View style={[StyleSheet.absoluteFill, styles.clip, width > 0 ? null : { backgroundColor: base }]}>
-      {tiles.map((t) =>
-        clock ? (
-          <AnimatedTile key={t.key} tile={t} size={size} base={base} lit={tint} line={line} clock={clock} />
-        ) : (
-          <View key={t.key} style={[tileBox(t, size), styles.staticLine, { backgroundColor: base, borderColor: line }]} />
-        ),
-      )}
+    <View style={[StyleSheet.absoluteFill, styles.clip]}>
+      {/* Tom escuro: um fundo só, por trás de todos os losangos. */}
+      {clock ? <BaseLayer color={base} clock={clock} /> : <View style={[StyleSheet.absoluteFill, { backgroundColor: base }]} />}
+      {clock ? tiles.map((t) => <AnimatedTile key={t.key} tile={t} size={size} lit={tint} clock={clock} />) : null}
       <Ornaments tint={tint} clock={clock} />
       {clock ? <Flash rank={rank} clock={clock} /> : null}
     </View>
   );
 });
 
-/** Posição do losango. Sem borda: a linha fica em cada camada (veja AnimatedTile). */
+/**
+ * O fundo escuro some quando todos os losangos já estão acesos (cobrindo a
+ * carta inteira), para os buracos mostrarem a skin.
+ */
+function BaseLayer({ color, clock }: { color: string; clock: SharedValue<number> }) {
+  const style = useAnimatedStyle(() => ({ opacity: clock.get() * REVEAL.total < REVEAL.fadeStart - 20 ? 1 : 0 }));
+  return <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: color }, style]} />;
+}
+
+/** Posição do losango. */
 function tileBox(t: Tile, size: number) {
   return {
     position: 'absolute' as const,
@@ -164,47 +158,33 @@ function tileBox(t: Tile, size: number) {
     top: t.y - size / 2,
     width: size,
     height: size,
-    transform: [{ rotate: '45deg' }],
   };
 }
 
+/**
+ * Uma View por losango, só com opacidade e escala (as propriedades mais
+ * baratas de animar): aparece sobre o fundo escuro ("tom acima" quando o X
+ * passa, cheio quando acende) e depois some e encolhe.
+ */
 const AnimatedTile = memo(function AnimatedTile({
   tile,
   size,
-  base,
   lit,
-  line,
   clock,
 }: {
   tile: Tile;
   size: number;
-  base: string;
   lit: string;
-  line: string;
   clock: SharedValue<number>;
 }) {
-  // Base: some e encolhe na fase final.
-  const baseStyle = useAnimatedStyle(() => {
-    const f = easeOut(clamp01((clock.get() * REVEAL.total - tile.fadeAt) / REVEAL.fadeDur));
-    return { opacity: 1 - f, transform: [{ rotate: '45deg' }, { scale: 1 - 0.45 * f }] };
-  });
-  // Camada clara: o X acende direto; os demais sobem um tom e depois acendem.
-  const litStyle = useAnimatedStyle(() => {
+  const style = useAnimatedStyle(() => {
     const t = clock.get() * REVEAL.total;
     const x = easeOut(clamp01((t - tile.xAt) / REVEAL.xDur));
-    if (tile.onX) return { opacity: x };
-    const l = easeOut(clamp01((t - tile.litAt) / REVEAL.fillDur));
-    return { opacity: MID * x + (1 - MID) * l };
+    const on = tile.onX ? x : MID * x + (1 - MID) * easeOut(clamp01((t - tile.litAt) / REVEAL.fillDur));
+    const f = easeOut(clamp01((t - tile.fadeAt) / REVEAL.fadeDur));
+    return { opacity: on * (1 - f), transform: [{ rotate: '45deg' }, { scale: 1 - 0.45 * f }] };
   });
-  return (
-    // Duas camadas do mesmo tamanho, cada uma com a sua linha discreta. O
-    // losango em si não tem borda nem fundo: no Android, a camada de cima é
-    // cortada por dentro da borda do pai, e a borda escura virava uma grade forte.
-    <Animated.View style={[tileBox(tile, size), baseStyle]}>
-      <View style={[styles.layer, { backgroundColor: base, borderColor: line }]} />
-      <Animated.View style={[styles.layer, { backgroundColor: lit, borderColor: line }, litStyle]} />
-    </Animated.View>
-  );
+  return <Animated.View style={[tileBox(tile, size), { backgroundColor: lit }, style]} />;
 });
 
 /** Enfeites do verso em repouso; somem logo no início da revelação. */
@@ -246,6 +226,4 @@ const styles = StyleSheet.create({
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   diamond: { position: 'absolute', borderWidth: 1, transform: [{ rotate: '45deg' }] },
   flash: { backgroundColor: '#FFFFFF' },
-  layer: { ...StyleSheet.absoluteFill, borderWidth: 1 },
-  staticLine: { borderWidth: 1 },
 });

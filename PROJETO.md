@@ -351,7 +351,7 @@ Os scripts de medição (`measure.sh`, `scroll.sh`, `reveal.sh`) ficaram no rasc
 | Loja parada: CPU da thread principal / renderização | 41% / 31% | **2,8% / <1%** |
 | Lista de desejos parada (loja escondida na pilha) | 25% de CPU, 0 quadros | **3,6%** |
 | Rolar a loja: mediana por quadro | 17–28 ms | igual (o `boxShadow` dos cards não faz diferença; foi mantido) |
-| **Revelar uma carta do mercado** | **27 quadros em 1,5 s, 117–150 ms cada** | pendente (ver abaixo) |
+| **Revelar uma carta do mercado** | **27 quadros em 1,5 s, 117–150 ms cada (100% com engasgo)** | **85–86 quadros, 16–17 ms cada, nas 4 revelações seguidas: 60 fps** |
 
 **O que foi corrigido:**
 - O **pulso infinito do ponto do banner do mercado** forçava a tela inteira a ser redesenhada ~60 vezes por segundo, mesmo parada ou escondida embaixo de outra tela. Agora pulsa 3 vezes ao aparecer e só com a loja em foco.
@@ -362,7 +362,13 @@ Os scripts de medição (`measure.sh`, `scroll.sh`, `reveal.sh`) ficaram no rasc
 - 40 losangos: 81 ms;
 - 40 losangos sem borda: 65 ms.
 
-Mesmo reduzindo, fica muito longe dos 16 ms de 60 fps. **Solução proposta:** desenhar a capa num único canvas com `@shopify/react-native-skia`, guiado pelo mesmo relógio do reanimated na thread de UI. Isso exige um development build novo e um APK novo.
+**Solução adotada (sem build novo):**
+- **49 losangos** em vez de 83 (diagonal = largura/3,2, ~60%; com a grade centrada a quantidade sobe em degraus: 25, 49, 59…). Escolhido pelo usuário.
+- **Cartas reveladas viram textura na GPU** (`renderToHardwareTextureAndroid` quando a capa termina). Sem isso, a cada quadro de uma revelação o Android redesenhava também as cartas já reveladas (imagem grande, degradê, texto), e o custo crescia a cada carta: com 49 losangos, a 1ª revelação levava 16 ms por quadro e a 4ª, 81 ms. Com a textura, todas ficam em 16–17 ms.
+- **Uma View por losango**, sem borda, animando **só opacidade e escala**. O losango tem a cor da raridade; o tom escuro é **um fundo único** por trás, que some quando todos estão acesos, para os buracos mostrarem a skin. O "tom acima" do X é a opacidade em 25%.
+- A **grade é ancorada no centro da carta**: com losangos maiores, a grade começando no canto deslocava o centro do X ~40 px para cima.
+
+A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centro para os cantos), conferida numa gravação quadro a quadro. Se um dia precisar de mais detalhe visual, o caminho é o Skia (canvas único, exige build novo).
 
 ## 7. Regras do projeto
 
@@ -407,6 +413,7 @@ Mesmo reduzindo, fica muito longe dos 16 ms de 60 fps. **Solução proposta:** d
 - **AAB / Google Play**: fora do escopo. A distribuição é só por APK.
 - **Build local** (`expo run:android`): usado só para testar no emulador; a distribuição continua pelo EAS na nuvem.
 - **`@react-native-cookies/cookies`**: sem manutenção desde 2022 e sem garantia na New Architecture. Trocado pelo módulo local.
+- **Capa com 83 losangos de duas camadas (base escura + clara) e bordas**: 117–150 ms por quadro. Trocada por 49 losangos de uma camada sobre um fundo único, com as cartas reveladas em textura na GPU.
 - **`backfaceVisibility` no flip**: instável no Android. Trocado pela troca de opacidade em 90°.
 - **Flip 3D + brilho circular na revelação**: substituídos pela capa de losangos que acende e se desfaz, como no jogo (a pedido).
 - **Verso com moldura e cantos marcados**: substituído pela grade de losangos.

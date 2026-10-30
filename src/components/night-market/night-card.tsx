@@ -88,7 +88,12 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
         accessible={revealed}
         accessibilityRole="button"
         accessibilityLabel={a11yRevealed}>
-        <Front offer={offer} color={color} width={size.width} />
+        {/* Revelada e parada, a frente vira uma textura pronta na GPU: enquanto
+            outra carta anima, redesenhá-la custa quase nada (senão o custo de
+            cada revelação crescia com o número de cartas já reveladas). */}
+        <View style={StyleSheet.absoluteFill} renderToHardwareTextureAndroid={coverGone}>
+          <Front offer={offer} color={color} width={size.width} />
+        </View>
       </Pressable>
 
       {!coverGone ? (
