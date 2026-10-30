@@ -12,7 +12,8 @@ import { colors, withAlpha } from '@/theme';
  * Revelação, guiada por um único relógio `clock` (0 → 1 em REVEAL.total ms):
  * 1. os enfeites somem;
  * 2. o "X" sai na frente, do centro até as pontas; logo atrás dele, os
- *    vizinhos começam a clarear (primeiro perto do centro e do X);
+ *    vizinhos começam a clarear (primeiro perto do centro e do X), sem mexer
+ *    na borda da carta;
  * 3. clarão quando a carta inteira acende (mais forte nas raridades altas);
  * 4. os losangos se desfazem do centro para os cantos, revelando a skin, que
  *    já está pronta por baixo.
@@ -133,7 +134,8 @@ type Props = {
 export const CardCover = memo(function CardCover({ color, rank, width, height, clock }: Props) {
   const tint = color ?? colors.mute;
   const base = mix(tint, colors.canvas, 0.62);
-  const line = 'rgba(0,0,0,0.22)';
+  // Contorno entre os losangos bem discreto.
+  const line = 'rgba(0,0,0,0.035)';
   const diagonal = Math.max(28, width / 4);
   const size = (diagonal / Math.SQRT2) * 1.06; // sobreposição evita frestas
   const tiles = useMemo(() => (width > 0 ? buildTiles(width, height, diagonal) : []), [width, height, diagonal]);
@@ -145,26 +147,23 @@ export const CardCover = memo(function CardCover({ color, rank, width, height, c
         clock ? (
           <AnimatedTile key={t.key} tile={t} size={size} base={base} lit={tint} line={line} clock={clock} />
         ) : (
-          <View key={t.key} style={[tileBox(t, size, line), { backgroundColor: base }]} />
+          <View key={t.key} style={[tileBox(t, size), styles.staticLine, { backgroundColor: base, borderColor: line }]} />
         ),
       )}
       <Ornaments tint={tint} clock={clock} />
       {clock ? <Flash rank={rank} clock={clock} /> : null}
-      {clock ? <LitBorder tint={tint} clock={clock} /> : null}
     </View>
   );
 });
 
-function tileBox(t: Tile, size: number, line: string) {
+/** Posição do losango. Sem borda: a linha fica em cada camada (veja AnimatedTile). */
+function tileBox(t: Tile, size: number) {
   return {
     position: 'absolute' as const,
     left: t.x - size / 2,
     top: t.y - size / 2,
     width: size,
     height: size,
-    borderWidth: 1,
-    borderColor: line,
-    overflow: 'hidden' as const,
     transform: [{ rotate: '45deg' }],
   };
 }
@@ -198,8 +197,12 @@ const AnimatedTile = memo(function AnimatedTile({
     return { opacity: MID * x + (1 - MID) * l };
   });
   return (
-    <Animated.View style={[tileBox(tile, size, line), { backgroundColor: base }, baseStyle]}>
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: lit }, litStyle]} />
+    // Duas camadas do mesmo tamanho, cada uma com a sua linha discreta. O
+    // losango em si não tem borda nem fundo: no Android, a camada de cima é
+    // cortada por dentro da borda do pai, e a borda escura virava uma grade forte.
+    <Animated.View style={[tileBox(tile, size), baseStyle]}>
+      <View style={[styles.layer, { backgroundColor: base, borderColor: line }]} />
+      <Animated.View style={[styles.layer, { backgroundColor: lit, borderColor: line }, litStyle]} />
     </Animated.View>
   );
 });
@@ -238,18 +241,11 @@ function Flash({ rank, clock }: { rank: number; clock: SharedValue<number> }) {
   return <Animated.View style={[StyleSheet.absoluteFill, styles.flash, style]} pointerEvents="none" />;
 }
 
-/** A borda acende na cor da raridade enquanto a carta acende. */
-function LitBorder({ tint, clock }: { tint: string; clock: SharedValue<number> }) {
-  const style = useAnimatedStyle(() => ({
-    opacity: clamp01((clock.get() * REVEAL.total - 150) / 250),
-  }));
-  return <Animated.View style={[StyleSheet.absoluteFill, styles.border, { borderColor: tint }, style]} pointerEvents="none" />;
-}
-
 const styles = StyleSheet.create({
   clip: { overflow: 'hidden' },
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   diamond: { position: 'absolute', borderWidth: 1, transform: [{ rotate: '45deg' }] },
   flash: { backgroundColor: '#FFFFFF' },
-  border: { borderWidth: 2 },
+  layer: { ...StyleSheet.absoluteFill, borderWidth: 1 },
+  staticLine: { borderWidth: 1 },
 });

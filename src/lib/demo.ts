@@ -89,8 +89,9 @@ export function buildDemoShop(content: Content, state: DemoState, now = Date.now
     };
   });
 
-  // Uma carta de cada raridade + uma extra aleatória, embaralhadas.
-  const ranks = [0, 1, 2, 3, 4, Math.floor(rand() * 5)].sort(() => rand() - 0.5);
+  // Como no jogo, o mercado noturno só tem Select, Deluxe, Premium e Exclusive
+  // (Ultra nunca sai). Uma de cada + duas extras, embaralhadas.
+  const ranks = [0, 1, 2, 3, Math.floor(rand() * 4), Math.floor(rand() * 4)].sort(() => rand() - 0.5);
   const nightOffers: NightOffer[] = ranks.map((rank, i) => {
     const { skin, tier } = skinOfRank(rank);
     const basePrice = PRICE_BY_RANK[rank]!;

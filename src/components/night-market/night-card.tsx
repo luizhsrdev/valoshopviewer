@@ -87,12 +87,7 @@ export const NightCard = memo(function NightCard({ offer, index, revealed, insta
         accessible={revealed}
         accessibilityRole="button"
         accessibilityLabel={a11yRevealed}>
-        <Front
-          offer={offer}
-          color={color}
-          width={size.width}
-          height={size.height}
-        />
+        <Front offer={offer} color={color} width={size.width} />
       </Pressable>
 
       {!coverGone ? (
@@ -122,12 +117,10 @@ function Front({
   offer,
   color,
   width,
-  height,
 }: {
   offer: NightOffer;
   color: string | null;
   width: number;
-  height: number;
 }) {
   const tint = color ?? colors.mute;
 
@@ -143,11 +136,6 @@ function Front({
         locations={[0, 0.55, 1]}
         style={StyleSheet.absoluteFill}
       />
-      {/* Anéis sutis atrás da arma. */}
-      <View style={styles.rings} pointerEvents="none">
-        <View style={[styles.ring, { width: '95%', borderColor: withAlpha(tint, 0.1) }]} />
-        <View style={[styles.ring, { width: '62%', borderColor: withAlpha(tint, 0.14) }]} />
-      </View>
 
       {/* Arma no centro do buraco que a capa abre. */}
       <View style={styles.weaponCenter} pointerEvents="none">
@@ -199,8 +187,6 @@ const styles = StyleSheet.create({
   slot: { flex: 1, aspectRatio: 0.68 },
   cover: { borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.hairline },
   front: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden', backgroundColor: colors.canvas },
-  rings: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  ring: { position: 'absolute', aspectRatio: 1, borderRadius: 9999, borderWidth: 10 },
   weaponCenter: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   image: { width: '100%', height: '100%' },
   discount: { position: 'absolute', top: 0, left: 0, flexDirection: 'row' },

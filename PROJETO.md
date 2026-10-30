@@ -254,7 +254,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Cartas:** são 6. O verso é uma **grade de losangos** (~80 por carta) na cor da raridade, escurecida, com linhas finas entre eles. Por cima, enfeites próprios: dois losangos concêntricos. Tudo desenhado no app, sem arte da Riot. Como no jogo, a cor da raridade já aparece antes de revelar.
 - **Revelação (a pedido, fiel ao jogo; substituiu o flip 3D)**, em `card-back.tsx`. Um único relógio por carta (0 → 1 em 1,45 s) move todos os losangos na thread de UI:
   1. **0–140 ms:** os enfeites somem.
-  2. **0–360 ms, o X sai na frente:** os losangos das diagonais (|Δi| = |Δj| a partir do central) acendem do centro às pontas. **Os vizinhos não esperam o X terminar.** Cada um sobe um tom quando o X passa pelo seu anel e acende logo depois (70 ms + 70 ms por losango de distância do X). Aos ~300 ms, o X chega às bordas com o miolo já aceso, como no jogo. Tudo aceso por volta de 670 ms. A borda acende junto.
+  2. **0–360 ms, o X sai na frente:** os losangos das diagonais (|Δi| = |Δj| a partir do central) acendem do centro às pontas. **Os vizinhos não esperam o X terminar.** Cada um sobe um tom quando o X passa pelo seu anel e acende logo depois (70 ms + 70 ms por losango de distância do X). Aos ~300 ms, o X chega às bordas com o miolo já aceso, como no jogo. Tudo aceso por volta de 670 ms. A borda da carta não muda durante a revelação.
   3. **~560–920 ms:** clarão branco quando a carta inteira acende. O pico vai de 6% (Select) a 34% (Ultra).
   4. **740–1450 ms:** os losangos somem e encolhem do centro para os cantos. A capa **não tem fundo próprio** (os losangos se sobrepõem 6% e cobrem tudo), então a skin, já pronta por baixo, aparece no primeiro losango que some. **Nada por baixo da capa se anima**: arma, desconto, preços e nome ficam parados, e a capa é a única animação (a pedido).
 - **Fluidez:**
@@ -264,7 +264,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
   - O modo de desenvolvimento é mais lento; o APK final fica mais fluido.
 - A dica "Toque nas cartas para revelar · 2 de 6" fica no cabeçalho, no lugar do contador, e não mais em cada carta.
 - **Carta revelada, no layout do jogo:**
-  - Fundo em degradê na cor da raridade, com dois anéis sutis.
+  - Fundo em degradê na cor da raridade, sem marca d'água.
   - **Arma na horizontal** (86% da largura), **no centro da carta**, onde a capa abre o buraco. Uma versão inclinada a 55°, como no jogo, foi testada e descartada a pedido.
   - **Desconto em vermelho** (`#FF4655`) no canto superior esquerdo, com a ponta cortada em diagonal.
   - **Preço final e preço original riscado** no canto superior direito ("VP" em texto, sem o ícone oficial).
@@ -273,7 +273,8 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Persistência:** os `BonusOfferID` revelados ficam no AsyncStorage com o `endsAt` do mercado e expiram com ele. Ao reabrir, as cartas já reveladas aparecem sem animação.
 - **"Remover animações"** do Android (`useReducedMotion`): revela na hora, sem losangos nem clarão, e os skeletons e o banner param de pulsar.
 - As imagens são pré-carregadas (`Image.prefetch`) ao abrir a tela, para a revelação não esperar a rede.
-- **Modo demonstração (só `__DEV__`):** botão "Entrar no modo demonstração (dev)" no login, mais o painel "Ferramentas de desenvolvimento" no fim da loja. O painel tem: ligar/desligar a demo, gerar um novo mercado, abrir/fechar o mercado, resetar as cartas, notificação em 5 s (para testar o deep link) e rodar a tarefa em segundo plano. A demo usa skins reais do catálogo, uma de cada raridade mais uma extra, e não toca na API da Riot.
+- **Raridades no mercado:** só Select, Deluxe, Premium e Exclusive, como no jogo. O modo demonstração sorteia uma de cada mais duas extras, sem Ultra.
+- **Modo demonstração (só `__DEV__`):** botão "Entrar no modo demonstração (dev)" no login, mais o painel "Ferramentas de desenvolvimento" no fim da loja. O painel tem: ligar/desligar a demo, gerar um novo mercado, abrir/fechar o mercado, resetar as cartas, notificação em 5 s (para testar o deep link) e rodar a tarefa em segundo plano. A demo usa skins reais do catálogo e não toca na API da Riot.
 
 ## 6.9 Detalhes da skin
 
@@ -348,6 +349,8 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
 - **Mercado noturno na mesma tela da loja**: proibido por regra do produto. Só o banner.
 - **Telas de exemplo do template (tabs, explore)**: removidas.
+- **Borda acesa (2 px) durante a revelação**: removida a pedido. O contorno entre os losangos também ficou mais discreto (3,5% em vez de 22%). Cada losango agora é um contêiner **sem borda e sem fundo**, com duas camadas do mesmo tamanho (escura e clara), cada uma com a sua linha de 3,5%. Antes a borda ficava no losango, e no Android a camada clara é cortada por dentro dessa borda (o inset negativo não funciona), então, aceso, aparecia uma grade escura forte.
+- **Marcas d'água por raridade no fundo da carta** (espiral, "olho", triângulo, seta): tentadas com Views e depois com PNGs gerados por script, sem chegar a um resultado parecido o bastante com o jogo. **Removidas de vez** a pedido (componente, imagens e script).
 - **Verso neutro, sem cor**: trocado pelo verso na cor da raridade, a pedido, porque o jogo mostra a cor antes de revelar.
 - **Rótulos com o nome da raridade** (SELECT, EXCLUSIVE…) nos cards: removidos a pedido.
 - **Ripple do Android nas cartas**: removido (nascia no ponto tocado, parecia descentralizado).
