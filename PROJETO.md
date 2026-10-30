@@ -269,7 +269,16 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Imagem grande com zoom:** pinça até 4x, arrastar quando ampliada e toque duplo para 2,5x. O fundo leva um gradiente na cor da raridade.
 - **Variantes (chromas):** miniaturas que trocam a imagem, mais o botão "Ver vídeo" quando a variante tem vídeo.
 - **Níveis:** "Nível N · o que desbloqueia", com os rótulos traduzidos (efeitos visuais, animação, efeitos sonoros, finalização, banner de abate…). Tocar abre o vídeo de demonstração do nível.
-- **Vídeos:** tocam numa WebView com `<video>` nativo, com tela cheia e controles, porque a WebView já está no build. Assim não precisou de build novo. O `expo-video` fica como melhoria futura.
+- **Vídeos (player próprio):** a WebView serve só de superfície: um `<video>` sem controles, que conversa com o app por mensagens (`video-surface.tsx`). Toda a interface é em React Native, no tema do app:
+  - play/pausa central;
+  - barra de progresso arrastável na cor da raridade, mostrando também a parte já carregada;
+  - tempo atual e duração com números tabulares;
+  - botão de som;
+  - "carregando" e "não foi possível tocar · Tentar de novo";
+  - controles que somem após 2,5 s tocando e voltam ao toque.
+- **Tela cheia:** gira o player em 90° num modal, sem barra de status e continuando do mesmo ponto. O app é travado em retrato, e girar a tela de verdade exigiria o `expo-screen-orientation`, que é nativo. O botão voltar do Android sai da tela cheia.
+- Os ícones são desenhados com Views (`player-icons.tsx`), sem fonte de ícones nem SVG, para não exigir build novo.
+- Com "Remover animações" ativo, os controles aparecem e somem sem fade.
 - Os pacotes ainda não abrem detalhes, porque os itens do pacote não são guardados no modelo.
 
 ## 7. Regras do projeto
@@ -315,6 +324,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - **Build local** (`expo run:android`): usado só para testar no emulador; a distribuição continua pelo EAS na nuvem.
 - **`@react-native-cookies/cookies`**: sem manutenção desde 2022 e sem garantia na New Architecture. Trocado pelo módulo local.
 - **`backfaceVisibility` no flip**: instável no Android. Trocado pela troca de opacidade em 90°.
+- **Controles padrão do `<video>` da WebView**: descartados, porque destoavam do app. Trocados por controles próprios.
 - **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
 - **Mercado noturno na mesma tela da loja**: proibido por regra do produto. Só o banner.
 - **Telas de exemplo do template (tabs, explore)**: removidas.
@@ -327,7 +337,7 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 - Lista de desejos + notificação quando uma skin desejada aparecer na loja diária.
 - Notificação opcional na troca da loja diária (21:00 de Brasília).
 - Botão "Revelar todas" no mercado.
-- Trocar o player da WebView pelo `expo-video` (exige build novo): tela cheia nativa, PiP e cache.
+- Trocar a superfície da WebView pelo `expo-video` (exige build novo), mantendo os controles próprios: decodificação nativa, PiP e cache de vídeo. Junto, o `expo-screen-orientation` para uma tela cheia com rotação de verdade.
 - Detalhes do pacote (lista das skins do pacote, cada uma abrindo a tela de detalhes).
 - Toque leve (haptics) na revelação, mais forte para Exclusive e Ultra.
 - Aviso de "otimização de bateria" para a tarefa em segundo plano em celulares agressivos (Xiaomi, Samsung).

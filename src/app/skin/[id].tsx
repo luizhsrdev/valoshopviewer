@@ -66,7 +66,7 @@ export default function SkinScreen() {
           {!detail ? (
             error ? null : <Skeleton height="100%" radius={0} />
           ) : hero.kind === 'video' ? (
-            <VideoPlayer key={hero.key} uri={hero.uri} />
+            <VideoPlayer key={hero.key} uri={hero.uri} tint={tint} />
           ) : (
             <ZoomableImage uri={current?.image ?? null} />
           )}
