@@ -1,11 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { interpolateColor, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
-import { colors, space, withAlpha } from '@/theme';
-
-import { Text } from '../text';
+import { colors, withAlpha } from '@/theme';
 
 /**
  * Capa da carta do mercado noturno: uma grade de losangos na cor da
@@ -13,33 +11,38 @@ import { Text } from '../text';
  *
  * Revelação, guiada por um único relógio `clock` (0 → 1 em REVEAL.total ms):
  * 1. os enfeites somem;
- * 2. o "X" acende sozinho, do centro até as pontas; os outros losangos só
- *    sobem um tom quando o X passa por eles;
- * 3. uma pausa curta com o X em destaque, e então a cor se espalha do X para
- *    os demais;
- * 4. clarão quando a carta inteira acende (mais forte nas raridades altas);
- * 5. os losangos se desfazem do centro para os cantos, revelando a skin.
+ * 2. o "X" sai na frente, do centro até as pontas; logo atrás dele, os
+ *    vizinhos começam a clarear (primeiro perto do centro e do X);
+ * 3. clarão quando a carta inteira acende (mais forte nas raridades altas);
+ * 4. os losangos se desfazem do centro para os cantos, revelando a skin, que
+ *    já está pronta por baixo.
+ *
+ * Desempenho: cada losango é uma base fixa + uma camada clara por cima; só se
+ * animam opacidade e escala (nada de interpolar cor a cada quadro).
  */
 
 export const REVEAL = {
-  total: 1850,
+  total: 1450,
   /** O X cresce do centro às pontas. */
-  xSpread: 260,
-  xDur: 160,
-  /** A cor se espalha do X para os demais (depois da pausa). */
-  fillStart: 520,
-  fillSpread: 300,
-  fillDur: 180,
+  xSpread: 220,
+  xDur: 140,
+  /** Os vizinhos clareiam logo atrás do X: atraso fixo + um passo por losango de distância. */
+  fillLag: 70,
+  fillStep: 70,
+  fillDur: 170,
   /** Os losangos somem do centro para fora. */
-  fadeStart: 1050,
-  fadeSpread: 520,
-  fadeDur: 260,
+  fadeStart: 740,
+  fadeSpread: 470,
+  fadeDur: 240,
   /** Clarão quando a carta inteira está acesa. */
-  flashAt: 840,
+  flashAt: 560,
 } as const;
 
 /** Momento (ms) em que os primeiros losangos somem e a skin aparece pelos buracos. */
 export const CONTENT_AT = REVEAL.fadeStart;
+
+/** Opacidade da camada clara quando o X passa (o "tom acima" antes de acender). */
+const MID = 0.25;
 
 const clamp01 = (v: number) => {
   'worklet';
@@ -57,11 +60,8 @@ function mix(a: string, b: string, t: number) {
   return `#${pa.map((v, i) => Math.round(v + (pb[i]! - v) * t).toString(16).padStart(2, '0')).join('')}`;
 }
 
-/**
- * Tempos (ms) de cada losango. `x` só existe nos losangos do X; os demais
- * sobem um tom em `mid` e acendem em `lit`.
- */
-type Tile = { key: string; x: number; y: number; onX: boolean; xAt: number; midAt: number; litAt: number; fadeAt: number };
+/** Tempos (ms) de cada losango. */
+type Tile = { key: string; x: number; y: number; onX: boolean; xAt: number; litAt: number; fadeAt: number };
 
 /**
  * Grade de losangos que cobre a carta inteira: quadrados girados 45°, com
@@ -72,6 +72,7 @@ function buildTiles(width: number, height: number, diagonal: number): Tile[] {
   const half = diagonal / 2;
   const cx = width / 2;
   const cy = height / 2;
+
   // Losango central: o vizinho válido (i + j par) mais próximo do centro.
   let ci = 0;
   let cj = 0;
@@ -107,7 +108,6 @@ function buildTiles(width: number, height: number, diagonal: number): Tile[] {
     }
   }
   const maxK = Math.max(...raw.filter((t) => t.onX).map((t) => t.k), 1);
-  const maxE = Math.max(...raw.map((t) => t.e), 1);
   const maxR = Math.max(...raw.map((t) => t.r), 1);
   return raw.map((t) => {
     const xAt = (Math.min(t.k, maxK) / maxK) * REVEAL.xSpread;
@@ -117,8 +117,8 @@ function buildTiles(width: number, height: number, diagonal: number): Tile[] {
       y: t.y,
       onX: t.onX,
       xAt,
-      midAt: xAt,
-      litAt: REVEAL.fillStart + (t.e / maxE) * REVEAL.fillSpread,
+      // Logo atrás do X que passa pelo seu anel, mais um passo por losango de distância do X.
+      litAt: xAt + REVEAL.fillLag + t.e * REVEAL.fillStep,
       fadeAt: REVEAL.fadeStart + (t.r / maxR) * REVEAL.fadeSpread,
     };
   });
@@ -136,18 +136,17 @@ type Props = {
 export const CardCover = memo(function CardCover({ color, rank, width, height, clock }: Props) {
   const tint = color ?? colors.mute;
   const base = mix(tint, colors.canvas, 0.62);
-  const mid = mix(base, tint, 0.22);
-  const lit = tint;
   const line = 'rgba(0,0,0,0.22)';
   const diagonal = Math.max(28, width / 4);
-  const size = (diagonal / Math.SQRT2) * 1.04; // leve sobreposição evita frestas
+  const size = (diagonal / Math.SQRT2) * 1.06; // sobreposição evita frestas
   const tiles = useMemo(() => (width > 0 ? buildTiles(width, height, diagonal) : []), [width, height, diagonal]);
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.clip, { backgroundColor: base }]}>
+    // Sem fundo próprio: quando um losango some, aparece a skin por baixo.
+    <View style={[StyleSheet.absoluteFill, styles.clip, width > 0 ? null : { backgroundColor: base }]}>
       {tiles.map((t) =>
         clock ? (
-          <AnimatedTile key={t.key} tile={t} size={size} base={base} mid={mid} lit={lit} line={line} clock={clock} />
+          <AnimatedTile key={t.key} tile={t} size={size} base={base} lit={tint} line={line} clock={clock} />
         ) : (
           <View key={t.key} style={[tileBox(t, size, line), { backgroundColor: base }]} />
         ),
@@ -168,6 +167,7 @@ function tileBox(t: Tile, size: number, line: string) {
     height: size,
     borderWidth: 1,
     borderColor: line,
+    overflow: 'hidden' as const,
     transform: [{ rotate: '45deg' }],
   };
 }
@@ -176,7 +176,6 @@ const AnimatedTile = memo(function AnimatedTile({
   tile,
   size,
   base,
-  mid,
   lit,
   line,
   clock,
@@ -184,31 +183,34 @@ const AnimatedTile = memo(function AnimatedTile({
   tile: Tile;
   size: number;
   base: string;
-  mid: string;
   lit: string;
   line: string;
   clock: SharedValue<number>;
 }) {
-  const style = useAnimatedStyle(() => {
-    const t = clock.get() * REVEAL.total;
-    // 0 → 0,5: sobe um tom (base → mid); 0,5 → 1: acende (mid → lit). O X vai direto.
-    const a = tile.onX
-      ? easeOut(clamp01((t - tile.xAt) / REVEAL.xDur))
-      : 0.5 * easeOut(clamp01((t - tile.midAt) / REVEAL.xDur)) + 0.5 * easeOut(clamp01((t - tile.litAt) / REVEAL.fillDur));
-    const f = easeOut(clamp01((t - tile.fadeAt) / REVEAL.fadeDur));
-    return {
-      backgroundColor: interpolateColor(a, [0, 0.5, 1], [base, mid, lit]),
-      opacity: 1 - f,
-      transform: [{ rotate: '45deg' }, { scale: 1 - 0.45 * f }],
-    };
+  // Base: some e encolhe na fase final.
+  const baseStyle = useAnimatedStyle(() => {
+    const f = easeOut(clamp01((clock.get() * REVEAL.total - tile.fadeAt) / REVEAL.fadeDur));
+    return { opacity: 1 - f, transform: [{ rotate: '45deg' }, { scale: 1 - 0.45 * f }] };
   });
-  return <Animated.View style={[tileBox(tile, size, line), style]} />;
+  // Camada clara: o X acende direto; os demais sobem um tom e depois acendem.
+  const litStyle = useAnimatedStyle(() => {
+    const t = clock.get() * REVEAL.total;
+    const x = easeOut(clamp01((t - tile.xAt) / REVEAL.xDur));
+    if (tile.onX) return { opacity: x };
+    const l = easeOut(clamp01((t - tile.litAt) / REVEAL.fillDur));
+    return { opacity: MID * x + (1 - MID) * l };
+  });
+  return (
+    <Animated.View style={[tileBox(tile, size, line), { backgroundColor: base }, baseStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: lit }, litStyle]} />
+    </Animated.View>
+  );
 });
 
 /** Enfeites do verso em repouso; somem logo no início da revelação. */
 function Ornaments({ tint, clock }: { tint: string; clock: SharedValue<number> | null }) {
   const style = useAnimatedStyle(() => ({
-    opacity: clock ? 1 - clamp01((clock.get() * REVEAL.total) / 160) : 1,
+    opacity: clock ? 1 - clamp01((clock.get() * REVEAL.total) / 140) : 1,
   }));
   const strong = withAlpha(tint, 0.85);
   return (
@@ -223,11 +225,6 @@ function Ornaments({ tint, clock }: { tint: string; clock: SharedValue<number> |
         <View style={[styles.diamond, { width: 46, height: 46, borderColor: strong, backgroundColor: withAlpha(tint, 0.25) }]} />
         <View style={[styles.diamond, { width: 12, height: 12, backgroundColor: strong, borderColor: strong }]} />
       </View>
-      <View style={styles.caption}>
-        <Text variant="micro" color={colors.ink} style={{ opacity: 0.7 }}>
-          TOQUE PARA REVELAR
-        </Text>
-      </View>
     </Animated.View>
   );
 }
@@ -237,8 +234,8 @@ function Flash({ rank, clock }: { rank: number; clock: SharedValue<number> }) {
   const peak = 0.06 + Math.max(0, Math.min(4, rank)) * 0.07;
   const style = useAnimatedStyle(() => {
     const t = clock.get() * REVEAL.total;
-    const up = clamp01((t - REVEAL.flashAt) / 140);
-    const down = clamp01((t - REVEAL.flashAt - 140) / 260);
+    const up = clamp01((t - REVEAL.flashAt) / 120);
+    const down = clamp01((t - REVEAL.flashAt - 120) / 240);
     return { opacity: peak * up * (1 - down) };
   });
   return <Animated.View style={[StyleSheet.absoluteFill, styles.flash, style]} pointerEvents="none" />;
@@ -247,7 +244,7 @@ function Flash({ rank, clock }: { rank: number; clock: SharedValue<number> }) {
 /** A borda acende na cor da raridade enquanto a carta acende. */
 function LitBorder({ tint, clock }: { tint: string; clock: SharedValue<number> }) {
   const style = useAnimatedStyle(() => ({
-    opacity: clamp01((clock.get() * REVEAL.total - 200) / 300),
+    opacity: clamp01((clock.get() * REVEAL.total - 150) / 250),
   }));
   return <Animated.View style={[StyleSheet.absoluteFill, styles.border, { borderColor: tint }, style]} pointerEvents="none" />;
 }
@@ -256,7 +253,6 @@ const styles = StyleSheet.create({
   clip: { overflow: 'hidden' },
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   diamond: { position: 'absolute', borderWidth: 1, transform: [{ rotate: '45deg' }] },
-  caption: { position: 'absolute', bottom: space.lg, left: 0, right: 0, alignItems: 'center' },
   flash: { backgroundColor: '#FFFFFF' },
   border: { borderWidth: 2 },
 });

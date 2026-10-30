@@ -81,7 +81,9 @@ async function download(version: string, riotClientVersion: string): Promise<Con
     skins.push({
       uuid: s.uuid,
       name: s.displayName,
-      image: s.displayIcon ?? s.chromas[0]?.fullRender ?? s.levels[0]?.displayIcon ?? null,
+      // O displayIcon da skin às vezes é um "X" (arte faltando na valorant-api);
+      // o render da primeira variante é sempre a arma de verdade.
+      image: s.chromas[0]?.fullRender ?? s.levels[0]?.displayIcon ?? s.displayIcon ?? null,
       tierUuid: s.contentTierUuid,
     });
     for (const level of s.levels) levelToSkin[level.uuid] = index;

@@ -80,7 +80,9 @@ export default function Mercado() {
             </Text>
             {night && revealed ? (
               <Text variant="caption" color={colors.ash}>
-                {revealed.size} de {night.offers.length} reveladas
+                {revealed.size < night.offers.length
+                  ? `Toque nas cartas para revelar · ${revealed.size} de ${night.offers.length}`
+                  : `${night.offers.length} de ${night.offers.length} reveladas`}
               </Text>
             ) : null}
           </View>
