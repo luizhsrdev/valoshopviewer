@@ -49,8 +49,6 @@ type Props = {
   visible: boolean;
   shown: OrderedWeapon[];
   hidden: OrderedWeapon[];
-  weapon: number | null;
-  onWeapon(index: number | null): void;
   tiers: Tier[];
   rarity: string | null;
   onRarity(tierUuid: string | null): void;
@@ -62,13 +60,11 @@ type Props = {
   onReset(): void;
 };
 
-/** Painel "Filtrar e organizar": raridade, arma (com arrastar e esconder). */
+/** Painel "Filtrar e organizar": raridade, e armas (arrastar para ordenar, esconder do filtro). */
 export function FilterSheet({
   visible,
   shown,
   hidden,
-  weapon,
-  onWeapon,
   tiers,
   rarity,
   onRarity,
@@ -130,7 +126,7 @@ export function FilterSheet({
                     Filtrar e organizar
                   </Text>
                   <Text variant="caption" color={colors.mute}>
-                    Toque numa raridade ou arma para filtrar. Arraste pela alça para reordenar; toque no olho para esconder.
+                    Toque numa raridade para filtrar. Arraste pela alça para reordenar as armas; toque no olho para esconder.
                   </Text>
                 </View>
                 <Pressable onPress={onClose} hitSlop={10} style={styles.done} accessibilityRole="button">
@@ -156,23 +152,7 @@ export function FilterSheet({
             <Text variant="micro" color={colors.ash} style={styles.sectionTitle}>
               ARMA · {shown.length}
             </Text>
-            <View style={styles.box}>
-              <Pressable
-                onPress={() => onWeapon(null)}
-                style={({ pressed }) => [styles.row, styles.static, pressed && { backgroundColor: colors.surfacePressed }]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: weapon === null }}>
-                <View style={styles.handle}>
-                  <Ionicons name={weapon === null ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={weapon === null ? colors.accent : colors.ash} />
-                </View>
-                <View style={styles.rowText}>
-                  <Text variant="label" color={weapon === null ? colors.ink : colors.body}>
-                    Todas as armas
-                  </Text>
-                </View>
-              </Pressable>
-              <SortableList items={shown} selected={weapon} onSelect={onWeapon} onReorder={onReorder} onHide={onHide} reduced={reduced} />
-            </View>
+            <SortableList items={shown} onReorder={onReorder} onHide={onHide} reduced={reduced} />
 
             {hidden.length ? (
               <>
@@ -235,20 +215,15 @@ function EyeButton({ on, name, onPress }: { on: boolean; name: string; onPress()
 /**
  * Lista reordenável: as linhas ficam em posição absoluta e se movem na thread
  * de UI. `positions` (UUID → índice) é a fonte da verdade durante o arraste;
- * ao soltar, a nova ordem vai para o React e é salva. Tocar no texto da linha
- * (fora da alça e do olho) seleciona aquela arma como filtro ativo.
+ * ao soltar, a nova ordem vai para o React e é salva.
  */
 function SortableList({
   items,
-  selected,
-  onSelect,
   onReorder,
   onHide,
   reduced,
 }: {
   items: OrderedWeapon[];
-  selected: number | null;
-  onSelect(index: number | null): void;
   onReorder(ids: string[]): void;
   onHide(id: string): void;
   reduced: boolean;
@@ -267,7 +242,7 @@ function SortableList({
   };
 
   return (
-    <View style={{ height: items.length * ROW }}>
+    <View style={[styles.box, { height: items.length * ROW }]}>
       {items.map((w) => (
         <SortableRow
           key={w.uuid}
@@ -275,8 +250,6 @@ function SortableList({
           count={items.length}
           positions={positions}
           dragging={dragging}
-          on={selected === w.index}
-          onSelect={onSelect}
           onCommit={commit}
           onHide={onHide}
           reduced={reduced}
@@ -291,8 +264,6 @@ const SortableRow = memo(function SortableRow({
   count,
   positions,
   dragging,
-  on,
-  onSelect,
   onCommit,
   onHide,
   reduced,
@@ -301,8 +272,6 @@ const SortableRow = memo(function SortableRow({
   count: number;
   positions: SharedValue<Record<string, number>>;
   dragging: SharedValue<boolean>;
-  on: boolean;
-  onSelect(index: number | null): void;
   onCommit(map: Record<string, number>): void;
   onHide(id: string): void;
   reduced: boolean;
@@ -381,19 +350,14 @@ const SortableRow = memo(function SortableRow({
           <Ionicons name="reorder-two" size={20} color={colors.mute} />
         </View>
       </GestureDetector>
-      <Pressable
-        onPress={() => onSelect(on ? null : item.index)}
-        style={styles.rowText}
-        accessibilityRole="button"
-        accessibilityState={{ selected: on }}
-        accessibilityLabel={`Filtrar por ${label(item)}`}>
-        <Text variant="label" color={on ? colors.accent : colors.ink}>
+      <View style={styles.rowText}>
+        <Text variant="label" color={colors.ink}>
           {label(item)}
         </Text>
         <Text variant="caption" color={colors.ash}>
           {CATEGORY[item.category] ?? item.category}
         </Text>
-      </Pressable>
+      </View>
       <EyeButton on name={label(item)} onPress={() => onHide(id)} />
     </Animated.View>
   );
@@ -443,7 +407,7 @@ const styles = StyleSheet.create({
   static: { backgroundColor: colors.surface },
   divider: { borderTopWidth: 1, borderTopColor: colors.hairline },
   handle: { width: 44, height: ROW, alignItems: 'center', justifyContent: 'center' },
-  rowText: { flex: 1, gap: 1, justifyContent: 'center', height: ROW },
+  rowText: { flex: 1, gap: 1 },
   eye: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   hiddenTitle: { marginTop: space.md },
   reset: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'center', paddingVertical: space.lg },

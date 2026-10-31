@@ -39,7 +39,6 @@ export default function Desejos() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'list' | 'catalog'>(ids.size ? 'list' : 'catalog');
   const [query, setQuery] = useState('');
-  const [weapon, setWeapon] = useState<number | null>(null);
   const [rarity, setRarity] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<WeaponPrefs | null>(null);
   const [sorting, setSorting] = useState(false);
@@ -52,7 +51,7 @@ export default function Desejos() {
   }, []);
 
   // Só skins com raridade: as outras (padrão, passe de batalha) nunca saem na loja.
-  const rows = useMemo<(Row & { weaponIndex: number })[]>(() => {
+  const rows = useMemo<Row[]>(() => {
     if (!content) return [];
     // Ordena pela chave já sem acentos (comparar strings em JS puro é rápido).
     return content.skins
@@ -64,7 +63,6 @@ export default function Desejos() {
           name: s.name,
           image: s.image,
           weapon: w?.category === 'Melee' ? MELEE_LABEL : (w?.name ?? ''),
-          weaponIndex: s.weapon,
           color: content.tiers[s.tierUuid!]?.color ?? null,
           tierUuid: s.tierUuid,
           search: fold(s.name),
@@ -82,15 +80,11 @@ export default function Desejos() {
   const filtered = useMemo(() => {
     const q = fold(query.trim());
     return rows.filter(
-      (r) =>
-        (tab === 'catalog' || ids.has(r.uuid)) &&
-        (weapon === null || r.weaponIndex === weapon) &&
-        (rarity === null || r.tierUuid === rarity) &&
-        (!q || r.search.includes(q)),
+      (r) => (tab === 'catalog' || ids.has(r.uuid)) && (rarity === null || r.tierUuid === rarity) && (!q || r.search.includes(q)),
     );
-  }, [rows, tab, ids, query, weapon, rarity]);
+  }, [rows, tab, ids, query, rarity]);
 
-  const filterActive = weapon !== null || rarity !== null;
+  const filterActive = rarity !== null;
 
   // Onde cada skin da lista está agora (loja do dia ou mercado noturno).
   const where = useMemo(() => {
@@ -111,7 +105,6 @@ export default function Desejos() {
   const hide = (id: string) => {
     const hiddenIds = [...weapons.hidden.map((w) => w.uuid), id];
     savePrefs({ order: [...weapons.visible.map((w) => w.uuid).filter((x) => x !== id), ...hiddenIds], hidden: hiddenIds });
-    if (weapon !== null && content?.weapons[weapon]?.uuid === id) setWeapon(null);
   };
   const show = (id: string) => {
     const hiddenIds = weapons.hidden.map((w) => w.uuid).filter((x) => x !== id);
@@ -192,7 +185,7 @@ export default function Desejos() {
             disabled={!content}
             style={({ pressed }) => [styles.editButton, pressed && { backgroundColor: colors.surfaceElevated }]}
             accessibilityRole="button"
-            accessibilityLabel="Filtrar por raridade ou arma, e organizar o filtro">
+            accessibilityLabel="Filtrar por raridade e organizar as armas">
             <Ionicons name="options-outline" size={18} color={colors.mute} />
             {filterActive ? <View style={styles.filterDot} /> : null}
           </Pressable>
@@ -262,8 +255,6 @@ export default function Desejos() {
         visible={sorting}
         shown={weapons.visible}
         hidden={weapons.hidden}
-        weapon={weapon}
-        onWeapon={setWeapon}
         tiers={tiers}
         rarity={rarity}
         onRarity={setRarity}
