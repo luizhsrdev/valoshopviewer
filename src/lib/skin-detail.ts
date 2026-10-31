@@ -88,7 +88,11 @@ function variantLabel(name: string, skinName: string, index: number): string {
 
 const memory = new Map<string, SkinDetail>();
 
+/** UUID no formato da valorant-api (o ID pode chegar por deep link). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function loadSkinDetail(uuid: string): Promise<SkinDetail> {
+  if (!UUID.test(uuid)) throw new Error('Skin não encontrada.');
   const cached = memory.get(uuid);
   if (cached) return cached;
   const [res, content] = await Promise.all([

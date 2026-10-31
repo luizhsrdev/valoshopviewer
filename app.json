@@ -15,7 +15,14 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.luiz.minhaloja"
+      "package": "com.luiz.minhaloja",
+      "allowBackup": false,
+      "permissions": [],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -44,7 +51,7 @@
       "reactCompiler": true
     },
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "extra": {
       "router": {
@@ -58,7 +65,9 @@
     },
     "owner": "luizhsnn",
     "updates": {
-      "url": "https://u.expo.dev/d92bd695-e76d-4c1d-8618-91cd5c84fd89"
+      "url": "https://u.expo.dev/d92bd695-e76d-4c1d-8618-91cd5c84fd89",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     },
     "backgroundColor": "#07080A",
     "platforms": [

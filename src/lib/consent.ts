@@ -1,13 +1,13 @@
 import { keys, readJson, writeJson } from './storage';
 
 /** Mude a versão sempre que o texto do aviso mudar: o aceite é pedido de novo. */
-export const CONSENT_VERSION = '2026-10-29';
+export const CONSENT_VERSION = '2026-10-30';
 
 export const CONSENT_POINTS = [
   'Este app não é afiliado, patrocinado nem aprovado pela Riot Games.',
   'Ele usa uma API não oficial do jogo. Isso vai contra os termos da Riot, e o risco (inclusive para a sua conta) é seu.',
   'O login acontece na página oficial da Riot. O app nunca vê a sua senha.',
-  'Seus dados ficam só neste celular. O app não envia nada a nenhum servidor além dos da Riot e da valorant-api.com (imagens e nomes das skins).',
+  'Seus dados ficam só neste celular. O app só se conecta aos servidores da Riot (login, loja e vídeos), da valorant-api.com (imagens e nomes das skins) e da Expo (para baixar atualizações do próprio app, sem dados seus).',
 ];
 
 export const FAN_NOTICE_PT =
