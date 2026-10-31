@@ -15,6 +15,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import type { Tier } from '@/lib/content';
 import type { OrderedWeapon } from '@/lib/weapon-order';
 import { colors, motion, radius, space, withAlpha } from '@/theme';
 
@@ -48,6 +49,11 @@ type Props = {
   visible: boolean;
   shown: OrderedWeapon[];
   hidden: OrderedWeapon[];
+  weapon: number | null;
+  onWeapon(index: number | null): void;
+  tiers: Tier[];
+  rarity: string | null;
+  onRarity(tierUuid: string | null): void;
   onClose(): void;
   /** Nova ordem das armas visíveis (UUIDs). */
   onReorder(ids: string[]): void;
@@ -56,8 +62,22 @@ type Props = {
   onReset(): void;
 };
 
-/** Painel "Organizar armas": arrastar para reordenar e esconder do filtro. */
-export function WeaponSorter({ visible, shown, hidden, onClose, onReorder, onHide, onShow, onReset }: Props) {
+/** Painel "Filtrar e organizar": raridade, arma (com arrastar e esconder). */
+export function FilterSheet({
+  visible,
+  shown,
+  hidden,
+  weapon,
+  onWeapon,
+  tiers,
+  rarity,
+  onRarity,
+  onClose,
+  onReorder,
+  onHide,
+  onShow,
+  onReset,
+}: Props) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
 
@@ -107,10 +127,10 @@ export function WeaponSorter({ visible, shown, hidden, onClose, onReorder, onHid
               <View style={styles.head}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text variant="heading" color={colors.ink}>
-                    Organizar armas
+                    Filtrar e organizar
                   </Text>
                   <Text variant="caption" color={colors.mute}>
-                    Arraste pela alça para mudar a ordem. Toque no olho para esconder do filtro.
+                    Toque numa raridade ou arma para filtrar. Arraste pela alça para reordenar; toque no olho para esconder.
                   </Text>
                 </View>
                 <Pressable onPress={onClose} hitSlop={10} style={styles.done} accessibilityRole="button">
@@ -124,9 +144,35 @@ export function WeaponSorter({ visible, shown, hidden, onClose, onReorder, onHid
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <Text variant="micro" color={colors.ash}>
-              NO FILTRO · {shown.length}
+              RARIDADE
             </Text>
-            <SortableList items={shown} onReorder={onReorder} onHide={onHide} reduced={reduced} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Chip label="Todas as raridades" on={rarity === null} onPress={() => onRarity(null)} />
+              {tiers.map((t) => (
+                <Chip key={t.uuid} label={t.name} color={t.color} on={rarity === t.uuid} onPress={() => onRarity(rarity === t.uuid ? null : t.uuid)} />
+              ))}
+            </ScrollView>
+
+            <Text variant="micro" color={colors.ash} style={styles.sectionTitle}>
+              ARMA · {shown.length}
+            </Text>
+            <View style={styles.box}>
+              <Pressable
+                onPress={() => onWeapon(null)}
+                style={({ pressed }) => [styles.row, styles.static, pressed && { backgroundColor: colors.surfacePressed }]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: weapon === null }}>
+                <View style={styles.handle}>
+                  <Ionicons name={weapon === null ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={weapon === null ? colors.accent : colors.ash} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text variant="label" color={weapon === null ? colors.ink : colors.body}>
+                    Todas as armas
+                  </Text>
+                </View>
+              </Pressable>
+              <SortableList items={shown} selected={weapon} onSelect={onWeapon} onReorder={onReorder} onHide={onHide} reduced={reduced} />
+            </View>
 
             {hidden.length ? (
               <>
@@ -162,6 +208,17 @@ export function WeaponSorter({ visible, shown, hidden, onClose, onReorder, onHid
   );
 }
 
+function Chip({ label, color, on, onPress }: { label: string; color?: string; on: boolean; onPress(): void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.chip, on && styles.chipOn]} accessibilityRole="button" accessibilityState={{ selected: on }}>
+      {color ? <View style={[styles.chipDot, { backgroundColor: color }]} /> : null}
+      <Text variant="caption" color={on ? colors.onPrimary : colors.body}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 function EyeButton({ on, name, onPress }: { on: boolean; name: string; onPress(): void }) {
   return (
     <Pressable
@@ -178,15 +235,20 @@ function EyeButton({ on, name, onPress }: { on: boolean; name: string; onPress()
 /**
  * Lista reordenável: as linhas ficam em posição absoluta e se movem na thread
  * de UI. `positions` (UUID → índice) é a fonte da verdade durante o arraste;
- * ao soltar, a nova ordem vai para o React e é salva.
+ * ao soltar, a nova ordem vai para o React e é salva. Tocar no texto da linha
+ * (fora da alça e do olho) seleciona aquela arma como filtro ativo.
  */
 function SortableList({
   items,
+  selected,
+  onSelect,
   onReorder,
   onHide,
   reduced,
 }: {
   items: OrderedWeapon[];
+  selected: number | null;
+  onSelect(index: number | null): void;
   onReorder(ids: string[]): void;
   onHide(id: string): void;
   reduced: boolean;
@@ -205,7 +267,7 @@ function SortableList({
   };
 
   return (
-    <View style={[styles.box, { height: items.length * ROW }]}>
+    <View style={{ height: items.length * ROW }}>
       {items.map((w) => (
         <SortableRow
           key={w.uuid}
@@ -213,6 +275,8 @@ function SortableList({
           count={items.length}
           positions={positions}
           dragging={dragging}
+          on={selected === w.index}
+          onSelect={onSelect}
           onCommit={commit}
           onHide={onHide}
           reduced={reduced}
@@ -227,6 +291,8 @@ const SortableRow = memo(function SortableRow({
   count,
   positions,
   dragging,
+  on,
+  onSelect,
   onCommit,
   onHide,
   reduced,
@@ -235,6 +301,8 @@ const SortableRow = memo(function SortableRow({
   count: number;
   positions: SharedValue<Record<string, number>>;
   dragging: SharedValue<boolean>;
+  on: boolean;
+  onSelect(index: number | null): void;
   onCommit(map: Record<string, number>): void;
   onHide(id: string): void;
   reduced: boolean;
@@ -297,12 +365,12 @@ const SortableRow = memo(function SortableRow({
   );
 
   const style = useAnimatedStyle(() => {
-    const on = active.get();
+    const dragActive = active.get();
     return {
-      transform: [{ translateY: y.get() }, { scale: withTiming(on ? 1.02 : 1, { duration: motion.fast }) }],
-      zIndex: on ? 10 : 0,
-      backgroundColor: on ? colors.surfaceElevated : colors.surface,
-      borderColor: on ? colors.hairlineStrong : 'transparent',
+      transform: [{ translateY: y.get() }, { scale: withTiming(dragActive ? 1.02 : 1, { duration: motion.fast }) }],
+      zIndex: dragActive ? 10 : 0,
+      backgroundColor: dragActive ? colors.surfaceElevated : colors.surface,
+      borderColor: dragActive ? colors.hairlineStrong : 'transparent',
     };
   });
 
@@ -313,14 +381,19 @@ const SortableRow = memo(function SortableRow({
           <Ionicons name="reorder-two" size={20} color={colors.mute} />
         </View>
       </GestureDetector>
-      <View style={styles.rowText}>
-        <Text variant="label" color={colors.ink}>
+      <Pressable
+        onPress={() => onSelect(on ? null : item.index)}
+        style={styles.rowText}
+        accessibilityRole="button"
+        accessibilityState={{ selected: on }}
+        accessibilityLabel={`Filtrar por ${label(item)}`}>
+        <Text variant="label" color={on ? colors.accent : colors.ink}>
           {label(item)}
         </Text>
         <Text variant="caption" color={colors.ash}>
           {CATEGORY[item.category] ?? item.category}
         </Text>
-      </View>
+      </Pressable>
       <EyeButton on name={label(item)} onPress={() => onHide(id)} />
     </Animated.View>
   );
@@ -349,13 +422,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   scroll: { paddingHorizontal: space.lg, gap: space.sm, paddingBottom: space.sm },
+  chips: { gap: space.sm, paddingVertical: 2, paddingRight: space.lg },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surface,
+  },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  sectionTitle: { marginTop: space.md },
   box: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.hairline, overflow: 'hidden' },
   row: { height: ROW, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingRight: space.sm },
   sortable: { position: 'absolute', left: 0, right: 0, top: 0, borderWidth: 1, borderRadius: radius.md },
   static: { backgroundColor: colors.surface },
   divider: { borderTopWidth: 1, borderTopColor: colors.hairline },
   handle: { width: 44, height: ROW, alignItems: 'center', justifyContent: 'center' },
-  rowText: { flex: 1, gap: 1 },
+  rowText: { flex: 1, gap: 1, justifyContent: 'center', height: ROW },
   eye: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   hiddenTitle: { marginTop: space.md },
   reset: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'center', paddingVertical: space.lg },

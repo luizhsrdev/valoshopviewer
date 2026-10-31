@@ -2,12 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FilterSheet } from '@/components/filter-sheet';
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
-import { WeaponSorter } from '@/components/weapon-sorter';
 import { WishHeart } from '@/components/wish-heart';
 import { loadContent, type Content, type Tier } from '@/lib/content';
 import { activeNight } from '@/lib/shop';
@@ -80,12 +80,17 @@ export default function Desejos() {
   }, [content]);
 
   const filtered = useMemo(() => {
-    if (tab === 'list') return rows.filter((r) => ids.has(r.uuid) && (rarity === null || r.tierUuid === rarity));
     const q = fold(query.trim());
     return rows.filter(
-      (r) => (weapon === null || r.weaponIndex === weapon) && (rarity === null || r.tierUuid === rarity) && (!q || r.search.includes(q)),
+      (r) =>
+        (tab === 'catalog' || ids.has(r.uuid)) &&
+        (weapon === null || r.weaponIndex === weapon) &&
+        (rarity === null || r.tierUuid === rarity) &&
+        (!q || r.search.includes(q)),
     );
   }, [rows, tab, ids, query, weapon, rarity]);
+
+  const filterActive = weapon !== null || rarity !== null;
 
   // Onde cada skin da lista está agora (loja do dia ou mercado noturno).
   const where = useMemo(() => {
@@ -160,20 +165,38 @@ export default function Desejos() {
           ))}
         </View>
 
-        {tiers.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip label="Todas as raridades" on={rarity === null} onPress={() => setRarity(null)} />
-            {tiers.map((t) => (
-              <Chip
-                key={t.uuid}
-                label={t.name}
-                color={t.color}
-                on={rarity === t.uuid}
-                onPress={() => setRarity(rarity === t.uuid ? null : t.uuid)}
-              />
-            ))}
-          </ScrollView>
-        ) : null}
+        {/* Idêntica nas duas abas: só o conteúdo listado abaixo muda. */}
+        <View style={styles.searchRow}>
+          <View style={styles.search}>
+            <Ionicons name="search" size={16} color={colors.ash} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Buscar skin (ex.: Prime, Reaver)"
+              placeholderTextColor={colors.ash}
+              style={styles.input}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              accessibilityLabel="Buscar skin pelo nome"
+            />
+            {query ? (
+              <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar busca">
+                <Ionicons name="close-circle" size={16} color={colors.ash} />
+              </Pressable>
+            ) : null}
+          </View>
+          {/* Mesmo desenho do campo de busca: altura, borda, raio e fundo. */}
+          <Pressable
+            onPress={() => setSorting(true)}
+            disabled={!content}
+            style={({ pressed }) => [styles.editButton, pressed && { backgroundColor: colors.surfaceElevated }]}
+            accessibilityRole="button"
+            accessibilityLabel="Filtrar por raridade ou arma, e organizar o filtro">
+            <Ionicons name="options-outline" size={18} color={colors.mute} />
+            {filterActive ? <View style={styles.filterDot} /> : null}
+          </Pressable>
+        </View>
 
         {tab === 'list' && ids.size > 0 ? (
           <Pressable onPress={confirmClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Desmarcar todas as skins da lista">
@@ -181,53 +204,6 @@ export default function Desejos() {
               Desmarcar todos
             </Text>
           </Pressable>
-        ) : null}
-
-        {tab === 'catalog' ? (
-          <>
-            <View style={styles.searchRow}>
-              <View style={styles.search}>
-                <Ionicons name="search" size={16} color={colors.ash} />
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Buscar skin (ex.: Prime, Reaver)"
-                  placeholderTextColor={colors.ash}
-                  style={styles.input}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  returnKeyType="search"
-                  accessibilityLabel="Buscar skin pelo nome"
-                />
-                {query ? (
-                  <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Limpar busca">
-                    <Ionicons name="close-circle" size={16} color={colors.ash} />
-                  </Pressable>
-                ) : null}
-              </View>
-              {/* Mesmo desenho do campo de busca: altura, borda, raio e fundo. */}
-              <Pressable
-                onPress={() => setSorting(true)}
-                disabled={!content}
-                style={({ pressed }) => [styles.editButton, pressed && { backgroundColor: colors.surfaceElevated }]}
-                accessibilityRole="button"
-                accessibilityLabel="Organizar armas do filtro">
-                <Ionicons name="options-outline" size={18} color={colors.mute} />
-              </Pressable>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              <Chip label="Todas" on={weapon === null} onPress={() => setWeapon(null)} />
-              {weapons.visible.map((w) => (
-                <Chip
-                  key={w.uuid}
-                  label={w.category === 'Melee' ? MELEE_LABEL : w.name}
-                  on={weapon === w.index}
-                  onPress={() => setWeapon(weapon === w.index ? null : w.index)}
-                  onLongPress={() => setSorting(true)}
-                />
-              ))}
-            </ScrollView>
-          </>
         ) : null}
       </View>
 
@@ -282,10 +258,15 @@ export default function Desejos() {
           )}
         />
       )}
-      <WeaponSorter
+      <FilterSheet
         visible={sorting}
         shown={weapons.visible}
         hidden={weapons.hidden}
+        weapon={weapon}
+        onWeapon={setWeapon}
+        tiers={tiers}
+        rarity={rarity}
+        onRarity={setRarity}
         onClose={() => setSorting(false)}
         onReorder={reorder}
         onHide={hide}
@@ -293,35 +274,6 @@ export default function Desejos() {
         onReset={() => savePrefs(null)}
       />
     </SafeAreaView>
-  );
-}
-
-function Chip({
-  label,
-  color,
-  on,
-  onPress,
-  onLongPress,
-}: {
-  label: string;
-  color?: string;
-  on: boolean;
-  onPress(): void;
-  onLongPress?(): void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={450}
-      style={[styles.chip, on && styles.chipOn]}
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}>
-      {color ? <View style={[styles.chipDot, { backgroundColor: color }]} /> : null}
-      <Text variant="caption" color={on ? colors.onPrimary : colors.body}>
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -362,21 +314,16 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     backgroundColor: colors.surface,
   },
-  input: { flex: 1, ...typeScale.body, color: colors.ink, paddingVertical: space.sm },
-  chips: { gap: space.sm, paddingRight: space.lg },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: space.md,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    backgroundColor: colors.surface,
+  filterDot: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
   },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  input: { flex: 1, ...typeScale.body, color: colors.ink, paddingVertical: space.sm },
   list: { paddingHorizontal: space.lg, paddingBottom: space.section },
   row: { height: ROW_H, flexDirection: 'row', alignItems: 'center', gap: space.md, borderRadius: radius.md, paddingHorizontal: space.xs },
   thumb: {
