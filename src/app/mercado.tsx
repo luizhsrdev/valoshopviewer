@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AlertDialog } from '@/components/alert-dialog';
 import { Button } from '@/components/button';
 import { Countdown, useNow } from '@/components/countdown';
 import { NightCard } from '@/components/night-market/night-card';
@@ -32,6 +33,7 @@ export default function Mercado() {
 
   const [sharing, setSharing] = useState(false);
   const [shareReady, setShareReady] = useState(false);
+  const [needsReveal, setNeedsReveal] = useState(false);
 
   // null = ainda lendo do armazenamento (evita piscar o verso das cartas).
   const [revealed, setRevealed] = useState<Set<string> | null>(null);
@@ -82,7 +84,7 @@ export default function Mercado() {
   const openShare = () => {
     if (!night || !revealed) return;
     if (!night.offers.every((o) => revealed.has(o.id))) {
-      Alert.alert('Revele todas as cartas', 'Para compartilhar o mercado noturno, toque em cada carta para revelar antes.');
+      setNeedsReveal(true);
       return;
     }
     setShareReady(false);
@@ -152,6 +154,14 @@ export default function Mercado() {
           <CardsSkeleton />
         )}
       </ScrollView>
+
+      <AlertDialog
+        visible={needsReveal}
+        title="Revele todas as cartas"
+        message="Para compartilhar o mercado noturno, toque em cada carta para revelar antes."
+        buttons={[{ text: 'OK' }]}
+        onRequestClose={() => setNeedsReveal(false)}
+      />
 
       {sharing && night ? (
         <ShareSheet

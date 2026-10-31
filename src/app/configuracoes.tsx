@@ -2,9 +2,10 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AlertDialog } from '@/components/alert-dialog';
 import { Button } from '@/components/button';
 import { Text } from '@/components/text';
 import { Toggle } from '@/components/toggle';
@@ -59,6 +60,7 @@ export default function Configuracoes() {
   const [restricted, setRestricted] = useState(false);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   const checkNow = async () => {
     setChecking(true);
@@ -100,12 +102,6 @@ export default function Configuracoes() {
     if (!ok) await Linking.openSettings();
     refreshStatus();
   };
-
-  const confirmSignOut = () =>
-    Alert.alert('Sair da conta?', 'Isso apaga a sessão, a loja salva e as cartas reveladas deste celular.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => signOut() },
-    ]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -188,12 +184,23 @@ export default function Configuracoes() {
           <Text variant="micro" color={colors.ash}>
             CONTA
           </Text>
-          <Button kind="ghost" label={demo?.enabled ? 'Sair do modo demonstração' : 'Sair da conta'} onPress={confirmSignOut} />
+          <Button
+            kind="ghost"
+            label={demo?.enabled ? 'Sair do modo demonstração' : 'Sair da conta'}
+            onPress={() => setConfirmingSignOut(true)}
+          />
           <Text variant="caption" color={colors.ash}>
             Sair apaga do celular o cookie de sessão da Riot e todos os dados salvos. A lista de desejos fica.
           </Text>
         </View>
       </ScrollView>
+      <AlertDialog
+        visible={confirmingSignOut}
+        title="Sair da conta?"
+        message="Isso apaga a sessão, a loja salva e as cartas reveladas deste celular."
+        buttons={[{ text: 'Cancelar', style: 'cancel' }, { text: 'Sair', style: 'destructive', onPress: () => signOut() }]}
+        onRequestClose={() => setConfirmingSignOut(false)}
+      />
     </SafeAreaView>
   );
 }

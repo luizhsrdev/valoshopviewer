@@ -2,9 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AlertDialog } from '@/components/alert-dialog';
 import { FilterSheet } from '@/components/filter-sheet';
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
@@ -42,6 +43,7 @@ export default function Desejos() {
   const [rarity, setRarity] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<WeaponPrefs | null>(null);
   const [sorting, setSorting] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   useEffect(() => {
     readWeaponPrefs().then(setPrefs);
@@ -118,12 +120,6 @@ export default function Desejos() {
     savePrefs({ order: [...weapons.visible.map((w) => w.uuid), id, ...hiddenIds], hidden: hiddenIds });
   };
 
-  const confirmClear = () =>
-    Alert.alert('Desmarcar todos?', `Isso remove as ${ids.size} skins salvas da sua lista de desejos.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Desmarcar todos', style: 'destructive', onPress: clear },
-    ]);
-
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   return (
@@ -198,7 +194,11 @@ export default function Desejos() {
         </View>
 
         {tab === 'list' && ids.size > 0 ? (
-          <Pressable onPress={confirmClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Desmarcar todas as skins da lista">
+          <Pressable
+            onPress={() => setConfirmingClear(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Desmarcar todas as skins da lista">
             <Text variant="caption" color={colors.body}>
               Desmarcar todos
             </Text>
@@ -269,6 +269,13 @@ export default function Desejos() {
         onHide={hide}
         onShow={show}
         onReset={() => savePrefs(null)}
+      />
+      <AlertDialog
+        visible={confirmingClear}
+        title="Desmarcar todos?"
+        message={`Isso remove as ${ids.size} skins salvas da sua lista de desejos.`}
+        buttons={[{ text: 'Cancelar', style: 'cancel' }, { text: 'Desmarcar todos', style: 'destructive', onPress: clear }]}
+        onRequestClose={() => setConfirmingClear(false)}
       />
     </SafeAreaView>
   );

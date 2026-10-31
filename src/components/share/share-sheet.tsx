@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Sharing from 'expo-sharing';
 import { useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -63,13 +63,16 @@ export function ShareSheet({ onClose, title, dialogTitle, ready, aspectRatio = 9
             </Pressable>
           </View>
 
-          <View style={styles.previewWrap}>
+          {/* flexShrink: a prévia encolhe (e aí rola) se não couber, mas o botão
+              abaixo nunca sai da tela — era possível ficar sem ver "Compartilhar"
+              em telas menores ou com proporção bem vertical (9:16). */}
+          <ScrollView style={styles.previewScroll} contentContainerStyle={styles.previewContent} showsVerticalScrollIndicator={false}>
             {/* collapsable={false}: no Android, uma View "vazia" de estilo pode ser
                 otimizada para fora da árvore nativa, e o view-shot perde a referência. */}
             <View ref={cardRef} collapsable={false} style={[styles.cardShadow, { aspectRatio }]}>
               {children}
             </View>
-          </View>
+          </ScrollView>
 
           {error ? (
             <Text variant="caption" color={colors.body}>
@@ -103,7 +106,8 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  previewWrap: { alignItems: 'center' },
+  previewScroll: { flexShrink: 1 },
+  previewContent: { alignItems: 'center', paddingVertical: space.xs },
   cardShadow: {
     width: '100%',
     borderRadius: radius.xl,
