@@ -1,27 +1,37 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Countdown, useNow } from '@/components/countdown';
 import { NightCard } from '@/components/night-market/night-card';
+import { NightShareCard } from '@/components/share/night-share-card';
+import { ShareSheet } from '@/components/share/share-sheet';
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { formatDate } from '@/lib/format';
 import { markNightSeen, readRevealed, saveRevealed } from '@/lib/night-market';
+import { playerLabel } from '@/lib/riot/session';
 import { openSkin } from '@/lib/skin-detail';
 import { activeNight, type NightOffer } from '@/lib/shop';
+import { useSession } from '@/providers/session';
 import { useShop } from '@/providers/shop';
 import { colors, radius, space } from '@/theme';
 
 export default function Mercado() {
+  const { account, demo } = useSession();
   const { shop, loading } = useShop();
   const now = useNow(30_000);
   const night = activeNight(shop, now);
   const reduced = useReducedMotion();
+  const who = playerLabel(account, !!demo?.enabled);
+
+  const [sharing, setSharing] = useState(false);
+  const [shareReady, setShareReady] = useState(false);
 
   // null = ainda lendo do armazenamento (evita piscar o verso das cartas).
   const [revealed, setRevealed] = useState<Set<string> | null>(null);
@@ -69,6 +79,16 @@ export default function Mercado() {
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
+  const openShare = () => {
+    if (!night || !revealed) return;
+    if (!night.offers.every((o) => revealed.has(o.id))) {
+      Alert.alert('Revele todas as cartas', 'Para compartilhar o mercado noturno, toque em cada carta para revelar antes.');
+      return;
+    }
+    setShareReady(false);
+    setSharing(true);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -77,6 +97,16 @@ export default function Mercado() {
             ‹ Loja
           </Text>
         </Pressable>
+        {night ? (
+          <Pressable
+            onPress={openShare}
+            hitSlop={8}
+            style={({ pressed }) => [styles.shareButton, pressed && { backgroundColor: colors.surfaceElevated }]}
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar o mercado noturno">
+            <Ionicons name="share-social-outline" size={19} color={colors.mute} />
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -122,6 +152,17 @@ export default function Mercado() {
           <CardsSkeleton />
         )}
       </ScrollView>
+
+      {sharing && night ? (
+        <ShareSheet
+          title="Compartilhar mercado"
+          dialogTitle="Meu mercado noturno"
+          ready={shareReady}
+          aspectRatio={3 / 4}
+          onClose={() => setSharing(false)}>
+          <NightShareCard night={night} who={who} onReady={() => setShareReady(true)} />
+        </ShareSheet>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -181,7 +222,14 @@ function CardsSkeleton() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  header: { height: 48, justifyContent: 'center', paddingHorizontal: space.lg },
+  header: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space.lg,
+  },
+  shareButton: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   content: { padding: space.lg, paddingTop: 0, gap: space.xl, paddingBottom: space.section },
   titleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space.md },
   timer: { alignItems: 'flex-end', gap: 2 },

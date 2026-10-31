@@ -25,3 +25,25 @@ export function formatDate(epoch: number): string {
   const d = new Date(epoch);
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${pad(d.getFullYear() % 100)}`;
 }
+
+const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+const MONTHS = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
+
+/** "sábado, 31 de outubro", para telas únicas (não listas). Sem Intl, de propósito. */
+export function formatLongDate(epoch: number): string {
+  const d = new Date(epoch);
+  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+}

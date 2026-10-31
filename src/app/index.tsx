@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Countdown, useNow } from '@/components/countdown';
+import { ShareSheet } from '@/components/share/share-sheet';
+import { StoreShareCard } from '@/components/share/store-share-card';
 import { Skeleton } from '@/components/skeleton';
 import { BundleCarousel } from '@/components/store/bundle-carousel';
 import { DevPanel } from '@/components/store/dev-panel';
@@ -16,6 +18,7 @@ import { Wallet } from '@/components/store/wallet';
 import { Text } from '@/components/text';
 import { formatTime } from '@/lib/format';
 import { markNightCallout, marketKey, shouldShowNightCallout, wasNightSeen } from '@/lib/night-market';
+import { playerLabel } from '@/lib/riot/session';
 import { openSkin } from '@/lib/skin-detail';
 import { activeNight, type SkinOffer } from '@/lib/shop';
 import { useSession } from '@/providers/session';
@@ -78,11 +81,10 @@ export default function Loja() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, nightKey]);
 
-  const who = demo?.enabled
-    ? 'Modo demonstração'
-    : account?.gameName
-      ? `${account.gameName}#${account.tagLine ?? ''}`
-      : 'Sua loja';
+  const who = playerLabel(account, !!demo?.enabled);
+
+  const [sharing, setSharing] = useState(false);
+  const [shareReady, setShareReady] = useState(false);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']} onTouchStart={onScreenTouch}>
@@ -131,6 +133,16 @@ export default function Loja() {
                 label={`Lista de desejos, ${wishlist.size} skins`}
                 onPress={() => router.push('/desejos')}
               />
+              {shop ? (
+                <HeaderIcon
+                  name="share-social-outline"
+                  label="Compartilhar a loja de hoje"
+                  onPress={() => {
+                    setShareReady(false);
+                    setSharing(true);
+                  }}
+                />
+              ) : null}
               <HeaderIcon name="settings-outline" label="Configurações" onPress={() => router.push('/configuracoes')} />
               {night && callout !== 'hidden' ? (
                 <NightMarketCallout
@@ -184,6 +196,16 @@ export default function Loja() {
 
         {__DEV__ ? <DevPanel onShowNightCallout={showCallout} /> : null}
       </ScrollView>
+
+      {sharing && shop ? (
+        <ShareSheet
+          title="Compartilhar loja"
+          dialogTitle="Minha loja de hoje"
+          ready={shareReady}
+          onClose={() => setSharing(false)}>
+          <StoreShareCard shop={shop} who={who} onReady={() => setShareReady(true)} />
+        </ShareSheet>
+      ) : null}
     </SafeAreaView>
   );
 }

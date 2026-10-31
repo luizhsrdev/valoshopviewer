@@ -44,6 +44,8 @@ example
 # generated native folders
 /ios
 /android
+# build do módulo nativo próprio, gerado ao compilar localmente
+modules/*/android/build/
 
 # segredos e credenciais (nunca versionar)
 .env

@@ -50,7 +50,8 @@ type Props = {
   shown: OrderedWeapon[];
   hidden: OrderedWeapon[];
   tiers: Tier[];
-  rarity: string | null;
+  rarity: string[];
+  /** `null` limpa a seleção; um UUID alterna (liga/desliga) aquela raridade. */
   onRarity(tierUuid: string | null): void;
   onClose(): void;
   /** Nova ordem das armas visíveis (UUIDs). */
@@ -126,7 +127,7 @@ export function FilterSheet({
                     Filtrar e organizar
                   </Text>
                   <Text variant="caption" color={colors.mute}>
-                    Toque numa raridade para filtrar. Arraste pela alça para reordenar as armas; toque no olho para esconder.
+                    Toque numa ou mais raridades para filtrar. Arraste pela alça para reordenar as armas; toque no olho para esconder.
                   </Text>
                 </View>
                 <Pressable onPress={onClose} hitSlop={10} style={styles.done} accessibilityRole="button">
@@ -143,9 +144,9 @@ export function FilterSheet({
               RARIDADE
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              <Chip label="Todas as raridades" on={rarity === null} onPress={() => onRarity(null)} />
+              <Chip label="Todas as raridades" on={rarity.length === 0} onPress={() => onRarity(null)} />
               {tiers.map((t) => (
-                <Chip key={t.uuid} label={t.name} color={t.color} on={rarity === t.uuid} onPress={() => onRarity(rarity === t.uuid ? null : t.uuid)} />
+                <Chip key={t.uuid} label={t.name} color={t.color} on={rarity.includes(t.uuid)} onPress={() => onRarity(t.uuid)} />
               ))}
             </ScrollView>
 

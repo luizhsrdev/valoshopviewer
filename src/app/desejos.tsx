@@ -39,7 +39,7 @@ export default function Desejos() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'list' | 'catalog'>(ids.size ? 'list' : 'catalog');
   const [query, setQuery] = useState('');
-  const [rarity, setRarity] = useState<string | null>(null);
+  const [rarity, setRarity] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<WeaponPrefs | null>(null);
   const [sorting, setSorting] = useState(false);
 
@@ -80,11 +80,17 @@ export default function Desejos() {
   const filtered = useMemo(() => {
     const q = fold(query.trim());
     return rows.filter(
-      (r) => (tab === 'catalog' || ids.has(r.uuid)) && (rarity === null || r.tierUuid === rarity) && (!q || r.search.includes(q)),
+      (r) =>
+        (tab === 'catalog' || ids.has(r.uuid)) &&
+        (rarity.length === 0 || (r.tierUuid !== null && rarity.includes(r.tierUuid))) &&
+        (!q || r.search.includes(q)),
     );
   }, [rows, tab, ids, query, rarity]);
 
-  const filterActive = rarity !== null;
+  const filterActive = rarity.length > 0;
+
+  const toggleRarity = (tierUuid: string | null) =>
+    setRarity((prev) => (tierUuid === null ? [] : prev.includes(tierUuid) ? prev.filter((t) => t !== tierUuid) : [...prev, tierUuid]));
 
   // Onde cada skin da lista está agora (loja do dia ou mercado noturno).
   const where = useMemo(() => {
@@ -257,7 +263,7 @@ export default function Desejos() {
         hidden={weapons.hidden}
         tiers={tiers}
         rarity={rarity}
-        onRarity={setRarity}
+        onRarity={toggleRarity}
         onClose={() => setSorting(false)}
         onReorder={reorder}
         onHide={hide}

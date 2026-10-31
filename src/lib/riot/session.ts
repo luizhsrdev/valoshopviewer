@@ -13,6 +13,13 @@ import RiotCookies from '../../../modules/riot-cookies';
 import { AUTH_ORIGIN, ENTITLEMENTS_URL, REDIRECT_PREFIX, RIOT_GEO_URL, shardFromAffinity, USERINFO_URL } from './constants';
 import type { RiotGeoResponse, UserInfoResponse } from './types';
 
+/** "Nome#TAG" da conta, para mostrar na tela (loja, cartões de compartilhar etc.). */
+export function playerLabel(account: Account | null, demoEnabled: boolean): string {
+  if (demoEnabled) return 'Modo demonstração';
+  if (account?.gameName) return `${account.gameName}#${account.tagLine ?? ''}`;
+  return 'Minha Loja';
+}
+
 export type Account = {
   puuid: string;
   shard: string;
