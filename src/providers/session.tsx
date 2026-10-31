@@ -17,10 +17,12 @@ type SessionContextValue = {
   demo: DemoState | null;
   /** Mensagem mostrada no login quando a sessão expirou. */
   notice: string | null;
+  /** Código curto de diagnóstico (sem token/cookie) de por que expirou. Temporário. */
+  noticeDiag: string | null;
   accept(): Promise<void>;
   signedIn(account: Account): Promise<void>;
   /** A renovação falhou: volta para o login sem apagar o aceite. */
-  expire(): Promise<void>;
+  expire(diag?: string): Promise<void>;
   signOut(): Promise<void>;
   setDemo(state: DemoState | null): Promise<void>;
 };
@@ -32,6 +34,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [demo, setDemoState] = useState<DemoState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeDiag, setNoticeDiag] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -59,6 +62,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signedIn = useCallback(async (acc: Account) => {
     setAccount(acc);
     setNotice(null);
+    setNoticeDiag(null);
     setStatus('signedIn');
     // Permissão e tarefa em segundo plano não podem travar o login.
     setupNotifications().catch(() => {});
@@ -74,17 +78,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAccount(null);
   }, []);
 
-  const expire = useCallback(async () => {
-    await wipe();
-    setNotice('Sua sessão da Riot expirou. Entre de novo para ver a loja.');
-    setStatus('signedOut');
-  }, [wipe]);
+  const expire = useCallback(
+    async (diag?: string) => {
+      await wipe();
+      setNotice('Sua sessão da Riot expirou. Entre de novo para ver a loja.');
+      setNoticeDiag(diag ?? null);
+      setStatus('signedOut');
+    },
+    [wipe],
+  );
 
   const signOut = useCallback(async () => {
     await wipe();
     await writeDemo(null);
     setDemoState(null);
     setNotice(null);
+    setNoticeDiag(null);
     setStatus('signedOut');
   }, [wipe]);
 
@@ -101,8 +110,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [account]);
 
   const value = useMemo(
-    () => ({ status, account, demo, notice, accept, signedIn, expire, signOut, setDemo }),
-    [status, account, demo, notice, accept, signedIn, expire, signOut, setDemo],
+    () => ({ status, account, demo, notice, noticeDiag, accept, signedIn, expire, signOut, setDemo }),
+    [status, account, demo, notice, noticeDiag, accept, signedIn, expire, signOut, setDemo],
   );
   return <SessionContext value={value}>{children}</SessionContext>;
 }

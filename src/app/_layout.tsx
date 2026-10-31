@@ -11,6 +11,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { SilentReauthWebView } from '@/components/riot/silent-reauth-webview';
 import { SessionProvider, useSession } from '@/providers/session';
 import { ShopProvider } from '@/providers/shop';
 import { WishlistProvider } from '@/providers/wishlist';
@@ -35,6 +36,9 @@ export default function RootLayout() {
             <WishlistProvider>
               <StatusBar style="light" />
               <Routes ready={fontsLoaded} />
+              {/* Sempre montada, invisível: renova a sessão pela WebView em
+                  vez do fetch (ver src/lib/riot/session.ts). */}
+              <SilentReauthWebView />
             </WishlistProvider>
           </ShopProvider>
         </SessionProvider>

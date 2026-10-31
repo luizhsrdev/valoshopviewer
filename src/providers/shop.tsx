@@ -88,7 +88,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         if (stale()) return;
         if (e instanceof SessionExpiredError) {
-          await expire();
+          await expire(e.reason);
           return;
         }
         const message = messageFor(e);

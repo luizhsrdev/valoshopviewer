@@ -10,15 +10,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 import RiotCookies from '../../../modules/riot-cookies';
-import {
-  AUTH_ORIGIN,
-  AUTHORIZE_URL,
-  ENTITLEMENTS_URL,
-  REDIRECT_PREFIX,
-  RIOT_GEO_URL,
-  shardFromAffinity,
-  USERINFO_URL,
-} from './constants';
+import { AUTH_ORIGIN, ENTITLEMENTS_URL, REDIRECT_PREFIX, RIOT_GEO_URL, shardFromAffinity, USERINFO_URL } from './constants';
 import type { RiotGeoResponse, UserInfoResponse } from './types';
 
 export type Account = {
@@ -37,19 +29,53 @@ export type Tokens = {
 
 /** A sessão expirou de vez: é preciso fazer login de novo. */
 export class SessionExpiredError extends Error {
-  constructor() {
+  /**
+   * Código curto e seguro (sem token/cookie) de qual etapa falhou, só para
+   * diagnóstico — mostrado na tela de login para o usuário relatar.
+   * TODO(2026-10-31): remover depois de confirmar a causa do "sempre pede
+   * login de novo" relatado no primeiro teste com conta real.
+   */
+  constructor(public readonly reason: string) {
     super('Sua sessão da Riot expirou. Entre de novo.');
     this.name = 'SessionExpiredError';
   }
 }
 
 const SECURE_ACCOUNT = 'riot.account';
+const SECURE_TOKENS = 'riot.tokens';
 const SECURE_COOKIE_NAMES = 'riot.cookie.names';
 const secureCookieKey = (name: string) => `riot.cookie.${name.replace(/[^A-Za-z0-9._-]/g, '_')}`;
 
 let tokens: Tokens | null = null;
 let account: Account | null = null;
 let reauthInFlight: Promise<Tokens> | null = null;
+
+/**
+ * Ponte para a WebView invisível de renovação (montada em `_layout.tsx`;
+ * registrada por `SilentReauthWebView`). `null` quando não há tela montada —
+ * é sempre o caso na tarefa em segundo plano, que roda sem UI.
+ */
+export type ReauthBridge = { reauth(): Promise<string> };
+let reauthBridge: ReauthBridge | null = null;
+export function setReauthBridge(bridge: ReauthBridge | null) {
+  reauthBridge = bridge;
+}
+
+async function saveTokens(t: Tokens): Promise<void> {
+  await SecureStore.setItemAsync(SECURE_TOKENS, JSON.stringify(t));
+}
+
+/** Token salvo da última renovação (foreground), se ainda não tiver vencido. */
+async function readSavedTokens(): Promise<Tokens | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(SECURE_TOKENS);
+    if (!raw) return null;
+    const t = JSON.parse(raw) as Tokens;
+    return t.expiresAt > Date.now() ? t : null;
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Tokens a partir da URL de redirecionamento
@@ -109,22 +135,27 @@ async function readCookieNames(): Promise<string[]> {
 }
 
 /**
- * Se o CookieManager perdeu os cookies (ex.: dados da WebView limpos),
+ * Se o CookieManager perdeu os cookies (ex.: processo do Android encerrado),
  * recoloca os que estão no SecureStore. Não sobrescreve cookies existentes,
  * para não duplicar o ssid rotacionado pela Riot.
+ *
+ * `diag` conta de onde veio o ssid, para saber qual das duas pontas falhou
+ * quando a sessão expira sem motivo aparente.
  */
-async function restoreCookiesIfMissing(): Promise<boolean> {
+async function restoreCookiesIfMissing(): Promise<{ ok: boolean; diag: string }> {
   const jar = parseCookieHeader(await RiotCookies.getAsync(AUTH_ORIGIN));
-  if (jar.ssid) return true;
+  if (jar.ssid) return { ok: true, diag: 'cookiemanager' };
   const names = await readCookieNames();
   const cookies: string[] = [];
   for (const name of names) {
     const value = await SecureStore.getItemAsync(secureCookieKey(name));
     if (value) cookies.push(`${name}=${value}; Path=/; Secure; HttpOnly`);
   }
-  if (!cookies.some((c) => c.startsWith('ssid='))) return false;
+  if (!cookies.some((c) => c.startsWith('ssid='))) {
+    return { ok: false, diag: `sem-backup:nomes=${names.length}:achados=${cookies.length}` };
+  }
   await RiotCookies.setAsync(AUTH_ORIGIN, cookies);
-  return true;
+  return { ok: true, diag: 'securestore' };
 }
 
 // ---------------------------------------------------------------------------
@@ -174,39 +205,57 @@ export async function completeLogin(redirectUrl: string): Promise<Account> {
   tokens = { accessToken: parsed.accessToken, entitlementsToken, expiresAt: parsed.expiresAt };
   account = acc;
   await SecureStore.setItemAsync(SECURE_ACCOUNT, JSON.stringify(acc));
-  await persistCookies();
+  await Promise.all([persistCookies(), saveTokens(tokens)]);
   return acc;
 }
 
 /**
- * Renova os tokens usando os cookies (GET /authorize). O fetch do Android
- * segue o redirecionamento e compartilha o cookie jar com a WebView;
- * a URL final traz os tokens no fragmento.
+ * Renova pela WebView invisível (não pelo `fetch`): o token vem no
+ * **fragmento** do link de redirecionamento, que por definição nunca é
+ * enviado a um servidor — só um motor de navegador consegue lê-lo antes de
+ * visitar o link. Testado com conta real em 2026-10-31: o `fetch` chegava a
+ * `playvalorant.com/opt_in`, mas sem o fragmento (a Riot nem chega a ver essa
+ * parte do link, então não é um redirecionamento "errado"; o servidor dela
+ * devolve 404 para esse link sem fragmento, igual devolveria para qualquer
+ * navegador comum). Ver PROJETO.md para o diagnóstico completo.
  */
 async function reauthenticate(): Promise<Tokens> {
-  const hasCookies = await restoreCookiesIfMissing();
-  if (!hasCookies) throw new SessionExpiredError();
+  const restored = await restoreCookiesIfMissing();
+  if (!restored.ok) throw new SessionExpiredError(`restore:${restored.diag}`);
 
-  let res: Response;
+  if (!reauthBridge) {
+    // Sem tela montada (ex.: tarefa em segundo plano): não dá para abrir uma
+    // WebView. getTokens() já tenta o token salvo antes de chegar aqui.
+    throw new SessionExpiredError('sem-webview');
+  }
+
+  let url: string;
   try {
-    res = await fetch(AUTHORIZE_URL, { credentials: 'include' });
-  } catch {
+    url = await reauthBridge.reauth();
+  } catch (reason) {
+    if (reason === 'cookie-invalido') throw new SessionExpiredError('webview:cookie-invalido');
     throw new Error('Sem conexão com a Riot. Verifique sua internet.');
   }
-  const parsed = res.url ? parseRedirect(res.url) : null;
-  if (!parsed) {
-    // Redirecionou para a página de login: cookie expirado ou inválido.
-    throw new SessionExpiredError();
-  }
+  const parsed = parseRedirect(url);
+  if (!parsed) throw new SessionExpiredError(`webview:sem-token:hash=${url.includes('#')}`);
+
   const entitlementsToken = await fetchEntitlements(parsed.accessToken);
-  // A Riot rotaciona os cookies a cada reauth: guarde os novos.
-  await persistCookies();
-  return { accessToken: parsed.accessToken, entitlementsToken, expiresAt: parsed.expiresAt };
+  const next = { accessToken: parsed.accessToken, entitlementsToken, expiresAt: parsed.expiresAt };
+  // A Riot rotaciona os cookies a cada reauth: guarde os novos, e o token
+  // (para a tarefa em segundo plano poder reaproveitá-lo sem abrir WebView).
+  await Promise.all([persistCookies(), saveTokens(next)]);
+  return next;
 }
 
 /** Tokens válidos, renovando quando preciso. Lança SessionExpiredError. */
 export async function getTokens(force = false): Promise<Tokens> {
   if (!force && tokens && tokens.expiresAt > Date.now()) return tokens;
+  // Processo novo (ex.: tarefa em segundo plano, sem WebView disponível):
+  // o token da última renovação em primeiro plano pode ainda valer.
+  if (!force && !tokens) {
+    const saved = await readSavedTokens();
+    if (saved) return (tokens = saved);
+  }
   if (!reauthInFlight) {
     reauthInFlight = reauthenticate()
       .then((t) => (tokens = t))
@@ -241,6 +290,7 @@ export async function clearSession(): Promise<void> {
     ...names.map((n) => SecureStore.deleteItemAsync(secureCookieKey(n))),
     SecureStore.deleteItemAsync(SECURE_COOKIE_NAMES),
     SecureStore.deleteItemAsync(SECURE_ACCOUNT),
+    SecureStore.deleteItemAsync(SECURE_TOKENS),
   ]);
   await RiotCookies.clearAllAsync();
 }

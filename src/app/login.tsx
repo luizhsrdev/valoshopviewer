@@ -12,7 +12,7 @@ import { useSession } from '@/providers/session';
 import { colors, radius, space, withAlpha } from '@/theme';
 
 export default function Login() {
-  const { signedIn, notice, setDemo } = useSession();
+  const { signedIn, notice, noticeDiag, setDemo } = useSession();
   const [open, setOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +102,14 @@ export default function Login() {
             <Text variant="caption" color={colors.body}>
               {error ?? notice}
             </Text>
+            {/* Diagnóstico temporário (sem token/cookie): ajuda a achar por que
+                a renovação silenciosa está falhando. Segure para copiar e me
+                mandar. Removo assim que confirmarmos a causa. */}
+            {!error && noticeDiag ? (
+              <Text variant="caption" color={colors.ash} selectable style={styles.diag}>
+                {noticeDiag} · segure para copiar
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -155,6 +163,7 @@ const styles = StyleSheet.create({
     borderColor: withAlpha(colors.accent, 0.4),
     backgroundColor: colors.dangerSoft,
   },
+  diag: { marginTop: space.xs },
   actions: { marginTop: 'auto', gap: space.md },
   hint: { textAlign: 'center' },
   webHeader: {
