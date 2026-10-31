@@ -1,3 +1,4 @@
+import { safeFetch } from '../net';
 import { CLIENT_PLATFORM, pdUrl } from './constants';
 import { getTokens, type Account } from './session';
 import type { StorefrontResponse, WalletResponse } from './types';
@@ -21,7 +22,7 @@ async function pd<T>(
 ): Promise<T> {
   const call = async (force: boolean) => {
     const t = await getTokens(force);
-    return fetch(`${pdUrl(acc.shard)}${path}`, {
+    return safeFetch(`${pdUrl(acc.shard)}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${t.accessToken}`,

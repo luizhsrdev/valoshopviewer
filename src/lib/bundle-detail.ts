@@ -5,6 +5,7 @@
  * em memória.
  */
 import { loadContent, skinForLevel, tierFor, type Tier } from './content';
+import { safeFetch } from './net';
 import { ITEM_TYPE } from './riot/constants';
 import type { BundleItem } from './shop';
 
@@ -46,7 +47,7 @@ const memory = new Map<string, { name: string; image: string | null }>();
 let buddyByLevel: Map<string, { name: string; image: string | null }> | null = null;
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`);
+  const res = await safeFetch(`${API}${path}`);
   if (!res.ok) throw new Error(`valorant-api.com respondeu ${res.status}.`);
   return ((await res.json()) as { data: T }).data;
 }

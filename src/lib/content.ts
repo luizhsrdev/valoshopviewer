@@ -5,6 +5,7 @@
  */
 import { rarityHex } from '@/theme';
 
+import { safeFetch } from './net';
 import { keys, legacyKeys, readJson, remove, writeJson } from './storage';
 import { compareText } from './text';
 
@@ -41,7 +42,7 @@ type ApiList<T> = { status: number; data: T[] };
 type ApiOne<T> = { status: number; data: T };
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`);
+  const res = await safeFetch(`${API}${path}`);
   if (!res.ok) throw new Error(`valorant-api.com respondeu ${res.status}.`);
   return (await res.json()) as T;
 }

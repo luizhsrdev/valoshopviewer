@@ -10,6 +10,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 import RiotCookies from '../../../modules/riot-cookies';
+import { safeFetch } from '../net';
 import { AUTH_ORIGIN, ENTITLEMENTS_URL, REDIRECT_PREFIX, RIOT_GEO_URL, shardFromAffinity, USERINFO_URL } from './constants';
 import type { RiotGeoResponse, UserInfoResponse } from './types';
 
@@ -170,7 +171,7 @@ async function restoreCookiesIfMissing(): Promise<{ ok: boolean; diag: string }>
 // ---------------------------------------------------------------------------
 
 async function fetchEntitlements(accessToken: string): Promise<string> {
-  const res = await fetch(ENTITLEMENTS_URL, {
+  const res = await safeFetch(ENTITLEMENTS_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: '{}',
@@ -182,8 +183,8 @@ async function fetchEntitlements(accessToken: string): Promise<string> {
 
 async function fetchAccount(accessToken: string, idToken: string): Promise<Account> {
   const [infoRes, geoRes] = await Promise.all([
-    fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } }),
-    fetch(RIOT_GEO_URL, {
+    safeFetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } }),
+    safeFetch(RIOT_GEO_URL, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ id_token: idToken }),
