@@ -2,14 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Skeleton } from '@/components/skeleton';
 import { Text } from '@/components/text';
 import { WeaponSorter } from '@/components/weapon-sorter';
 import { WishHeart } from '@/components/wish-heart';
-import { loadContent, type Content } from '@/lib/content';
+import { loadContent, type Content, type Tier } from '@/lib/content';
 import { activeNight } from '@/lib/shop';
 import { openSkin } from '@/lib/skin-detail';
 import { fold } from '@/lib/text';
@@ -18,20 +18,29 @@ import { useShop } from '@/providers/shop';
 import { useWishlist } from '@/providers/wishlist';
 import { colors, radius, space, type as typeScale } from '@/theme';
 
-type Row = { uuid: string; name: string; image: string | null; weapon: string; color: string | null; search: string };
+type Row = {
+  uuid: string;
+  name: string;
+  image: string | null;
+  weapon: string;
+  color: string | null;
+  tierUuid: string | null;
+  search: string;
+};
 
 const ROW_H = 68;
 
 const MELEE_LABEL = 'Corpo a corpo';
 
 export default function Desejos() {
-  const { ids } = useWishlist();
+  const { ids, clear } = useWishlist();
   const { shop } = useShop();
   const [content, setContent] = useState<Content | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'list' | 'catalog'>(ids.size ? 'list' : 'catalog');
   const [query, setQuery] = useState('');
   const [weapon, setWeapon] = useState<number | null>(null);
+  const [rarity, setRarity] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<WeaponPrefs | null>(null);
   const [sorting, setSorting] = useState(false);
 
@@ -57,17 +66,26 @@ export default function Desejos() {
           weapon: w?.category === 'Melee' ? MELEE_LABEL : (w?.name ?? ''),
           weaponIndex: s.weapon,
           color: content.tiers[s.tierUuid!]?.color ?? null,
+          tierUuid: s.tierUuid,
           search: fold(s.name),
         };
       })
       .sort((a, b) => (a.search < b.search ? -1 : a.search > b.search ? 1 : 0));
   }, [content]);
 
+  // Raridades em ordem (da mais comum à mais rara), só as que existem no catálogo.
+  const tiers = useMemo<Tier[]>(() => {
+    if (!content) return [];
+    return Object.values(content.tiers).sort((a, b) => a.rank - b.rank);
+  }, [content]);
+
   const filtered = useMemo(() => {
-    if (tab === 'list') return rows.filter((r) => ids.has(r.uuid));
+    if (tab === 'list') return rows.filter((r) => ids.has(r.uuid) && (rarity === null || r.tierUuid === rarity));
     const q = fold(query.trim());
-    return rows.filter((r) => (weapon === null || r.weaponIndex === weapon) && (!q || r.search.includes(q)));
-  }, [rows, tab, ids, query, weapon]);
+    return rows.filter(
+      (r) => (weapon === null || r.weaponIndex === weapon) && (rarity === null || r.tierUuid === rarity) && (!q || r.search.includes(q)),
+    );
+  }, [rows, tab, ids, query, weapon, rarity]);
 
   // Onde cada skin da lista está agora (loja do dia ou mercado noturno).
   const where = useMemo(() => {
@@ -95,6 +113,12 @@ export default function Desejos() {
     // Volta para o fim da lista visível.
     savePrefs({ order: [...weapons.visible.map((w) => w.uuid), id, ...hiddenIds], hidden: hiddenIds });
   };
+
+  const confirmClear = () =>
+    Alert.alert('Desmarcar todos?', `Isso remove as ${ids.size} skins salvas da sua lista de desejos.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Desmarcar todos', style: 'destructive', onPress: clear },
+    ]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -135,6 +159,29 @@ export default function Desejos() {
             </Pressable>
           ))}
         </View>
+
+        {tiers.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <Chip label="Todas as raridades" on={rarity === null} onPress={() => setRarity(null)} />
+            {tiers.map((t) => (
+              <Chip
+                key={t.uuid}
+                label={t.name}
+                color={t.color}
+                on={rarity === t.uuid}
+                onPress={() => setRarity(rarity === t.uuid ? null : t.uuid)}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {tab === 'list' && ids.size > 0 ? (
+          <Pressable onPress={confirmClear} hitSlop={8} accessibilityRole="button" accessibilityLabel="Desmarcar todas as skins da lista">
+            <Text variant="caption" color={colors.body}>
+              Desmarcar todos
+            </Text>
+          </Pressable>
+        ) : null}
 
         {tab === 'catalog' ? (
           <>
@@ -220,7 +267,7 @@ export default function Desejos() {
               accessibilityRole="button"
               accessibilityLabel={`${item.name}. Ver detalhes.`}>
               <View style={[styles.thumb, item.color ? { borderColor: item.color } : null]}>
-                <Image source={item.image ?? undefined} style={styles.thumbImage} contentFit="contain" cachePolicy="disk" />
+                <Image source={item.image ?? undefined} style={styles.thumbImage} contentFit="contain" cachePolicy="memory-disk" />
               </View>
               <View style={styles.rowText}>
                 <Text variant="label" color={colors.ink} numberOfLines={1}>
@@ -249,7 +296,19 @@ export default function Desejos() {
   );
 }
 
-function Chip({ label, on, onPress, onLongPress }: { label: string; on: boolean; onPress(): void; onLongPress?(): void }) {
+function Chip({
+  label,
+  color,
+  on,
+  onPress,
+  onLongPress,
+}: {
+  label: string;
+  color?: string;
+  on: boolean;
+  onPress(): void;
+  onLongPress?(): void;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -258,6 +317,7 @@ function Chip({ label, on, onPress, onLongPress }: { label: string; on: boolean;
       style={[styles.chip, on && styles.chipOn]}
       accessibilityRole="button"
       accessibilityState={{ selected: on }}>
+      {color ? <View style={[styles.chipDot, { backgroundColor: color }]} /> : null}
       <Text variant="caption" color={on ? colors.onPrimary : colors.body}>
         {label}
       </Text>
@@ -305,6 +365,9 @@ const styles = StyleSheet.create({
   input: { flex: 1, ...typeScale.body, color: colors.ink, paddingVertical: space.sm },
   chips: { gap: space.sm, paddingRight: space.lg },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
     paddingHorizontal: space.md,
     paddingVertical: 6,
     borderRadius: radius.full,
@@ -313,6 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
   list: { paddingHorizontal: space.lg, paddingBottom: space.section },
   row: { height: ROW_H, flexDirection: 'row', alignItems: 'center', gap: space.md, borderRadius: radius.md, paddingHorizontal: space.xs },
   thumb: {

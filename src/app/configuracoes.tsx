@@ -1,4 +1,6 @@
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +13,7 @@ import { cancelDailyReserve, notificationsAllowed, scheduleDailyReserve, setupNo
 import { DEFAULT_SETTINGS, readSettings, writeSettings, type NotifySettings } from '@/lib/settings';
 import { useSession } from '@/providers/session';
 import { useShop } from '@/providers/shop';
+import { formatDate } from '@/lib/format';
 import { colors, radius, space } from '@/theme';
 
 const OPTIONS: { key: keyof NotifySettings; title: string; description: string }[] = [
@@ -19,12 +22,55 @@ const OPTIONS: { key: keyof NotifySettings; title: string; description: string }
   { key: 'night', title: 'Mercado noturno', description: 'Quando o mercado noturno abre.' },
 ];
 
+/** "Versão 1.0.0 · atualização de 30/10/26 · 01a18f35 (canal production)". */
+function versionLine() {
+  const version = Constants.expoConfig?.version ?? '?';
+  if (__DEV__ || !Updates.isEnabled) return `Versão ${version} · desenvolvimento`;
+  const update = Updates.isEmbeddedLaunch || !Updates.createdAt ? 'sem atualizações' : `atualização de ${formatDate(Updates.createdAt.getTime())}`;
+  const id = Updates.updateId ? ` · ${Updates.updateId.slice(0, 8)}` : '';
+  return `Versão ${version} · ${update}${id}${Updates.channel ? ` (canal ${Updates.channel})` : ''}`;
+}
+
+/**
+ * Checa, baixa e aplica uma atualização na hora, mostrando cada etapa —
+ * inclusive por que não há uma nova (ex.: "updatePreviouslyFailed": o
+ * sistema baixou uma vez, ela não terminou de abrir direito, e por segurança
+ * ele para de oferecê-la sozinho). Temporário, para debugar o app sempre
+ * voltando à versão antiga depois de uma atualização.
+ */
+async function checkForUpdateNow(): Promise<string> {
+  if (__DEV__ || !Updates.isEnabled) return 'Atualizações desligadas neste build (desenvolvimento).';
+  const check = await Updates.checkForUpdateAsync();
+  if (!check.isAvailable) {
+    const why = check.isRollBackToEmbedded ? 'rollback para a versão embutida' : (check.reason ?? 'sem motivo informado');
+    return `Nenhuma atualização nova no servidor (${why}).`;
+  }
+  const fetched = await Updates.fetchUpdateAsync();
+  if (!fetched.isNew) return 'Encontrou uma atualização, mas o download não trouxe uma versão nova.';
+  await Updates.reloadAsync();
+  return 'Baixada e aplicando agora…'; // reloadAsync reinicia o app antes disso aparecer
+}
+
 export default function Configuracoes() {
   const { signOut, demo } = useSession();
   const { shop } = useShop();
   const [settings, setSettings] = useState<NotifySettings>(DEFAULT_SETTINGS);
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [restricted, setRestricted] = useState(false);
+  const [checkMsg, setCheckMsg] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const checkNow = async () => {
+    setChecking(true);
+    setCheckMsg(null);
+    try {
+      setCheckMsg(await checkForUpdateNow());
+    } catch (e) {
+      setCheckMsg(`Erro ao checar: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const refreshStatus = useCallback(() => {
     notificationsAllowed().then(setAllowed);
@@ -116,6 +162,25 @@ export default function Configuracoes() {
               O Android está limitando o app em segundo plano. Para os avisos chegarem, tire o Minha Loja da otimização de
               bateria.
             </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <Text variant="micro" color={colors.ash}>
+            SOBRE
+          </Text>
+          <Text variant="caption" color={colors.mute} selectable>
+            {versionLine()}
+          </Text>
+          {!__DEV__ && Updates.isEnabled ? (
+            <>
+              <Button kind="ghost" label="Verificar atualização agora" busy={checking} onPress={checkNow} />
+              {checkMsg ? (
+                <Text variant="caption" color={colors.ash} selectable>
+                  {checkMsg}
+                </Text>
+              ) : null}
+            </>
           ) : null}
         </View>
 

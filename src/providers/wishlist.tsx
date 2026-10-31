@@ -6,6 +6,7 @@ type WishlistContextValue = {
   ids: Set<string>;
   has(skinUuid: string | null | undefined): boolean;
   toggle(skinUuid: string): void;
+  clear(): void;
 };
 
 const WishlistContext = createContext<WishlistContextValue | null>(null);
@@ -27,9 +28,15 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const clear = useCallback(() => {
+    const next = new Set<string>();
+    setIds(next);
+    writeWishlist(next);
+  }, []);
+
   const value = useMemo(
-    () => ({ ids, has: (id: string | null | undefined) => !!id && ids.has(id), toggle }),
-    [ids, toggle],
+    () => ({ ids, has: (id: string | null | undefined) => !!id && ids.has(id), toggle, clear }),
+    [ids, toggle, clear],
   );
   return <WishlistContext value={value}>{children}</WishlistContext>;
 }
