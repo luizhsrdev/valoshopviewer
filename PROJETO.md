@@ -109,23 +109,16 @@ Verificações: `expo-doctor` passou nas 20/20 checagens; `npm run typecheck` e 
 
 ---
 
-## 4. Perfis do EAS (`eas.json`)
+## 4. Perfis do EAS e atualizações
 
 | Perfil | Para quê | Saída | Canal (EAS Update) | Variante |
 |---|---|---|---|---|
-| `development` | Desenvolvimento diário; carrega o JS do seu Mac via Metro | APK com `expo-dev-client` | `development` | `Minha Loja (dev)` / `.dev` |
-| `apk` | Versão final para instalar e distribuir | APK release, `versionCode` auto-incrementado (versão gerenciada no EAS) | `apk` | `Minha Loja` |
+| `development` | Desenvolvimento diário (carrega o JS do Metro) | APK com `expo-dev-client` | `development` | `Minha Loja (dev)` / `com.luiz.minhaloja.dev` |
+| `apk` | Versão final para os amigos | APK release, `versionCode` automático | **`production`** | `Minha Loja` / `com.luiz.minhaloja` |
 
-- `runtimeVersion` segue a política `appVersion`: um update OTA só chega a APKs com o mesmo `version` (hoje `1.0.0`). **Sempre que mudar algo nativo** (adicionar uma lib nativa, mudar permissões ou plugins), suba o `version` no `app.json` e gere um APK novo.
-- Comandos:
-  ```sh
-  npx eas-cli@latest build -p android --profile development   # build de dev
-  npx eas-cli@latest build -p android --profile apk           # APK final
-  npx eas-cli@latest update --channel apk --message "texto"   # OTA para quem tem o APK final
-  ```
-- No primeiro build de cada package, o EAS pergunta se pode **gerar uma keystore Android**. Responda **Yes**: ela fica guardada no EAS, nunca no repositório. Cada package (`.dev` e o final) tem a sua.
-
----
+- **Atualização:** `updates.checkAutomatically: ON_LOAD` + `fallbackToCacheTimeout: 0`. O app checa ao abrir, baixa em segundo plano e aplica **na próxima abertura**, sem atrasar a abertura. A data da atualização em uso aparece em **Configurações › Sobre**.
+- **`runtimeVersion` = política `fingerprint`** (antes `appVersion`, que exigia lembrar de subir a versão). É uma impressão digital de tudo que é nativo (bibliotecas, `app.json`, ícone, splash, permissões, `modules/riot-cookies`). Se ela mudar, é preciso **APK novo**; se não mudou, basta `eas update`. Para ver: `npx expo-updates runtimeversion:resolve --platform android`. Tabela completa no `README.md`.
+- Comandos: `npx eas-cli@latest build -p android --profile apk` e `npx eas-cli@latest update --channel production --message "…"`. **Sempre perguntar ao usuário antes de rodar build ou update.**
 
 ## 5. Por que não basta o Expo Go
 
@@ -224,6 +217,7 @@ src/
     index.tsx             Loja (tela principal)
     mercado.tsx           mercado noturno (tela separada)
   components/             UI (text, button, countdown, skeleton, store/*, night-market/*)
+    riot/silent-reauth-webview.tsx  WebView invisível da renovação de sessão (seção 6.7)
   lib/
     riot/                 constants, types, session (tokens/cookies/reauth), api (storefront v3, wallet)
     content.ts            catálogo valorant-api.com (pt-BR), cache compacto por versão do jogo
@@ -242,10 +236,12 @@ modules/riot-cookies/     módulo nativo Kotlin (CookieManager)
 1. O app abre e confere o aceite. Se a versão aceita for antiga, mostra as boas-vindas.
 2. Sem sessão salva, vai para o login.
 3. No login, a WebView da Riot redireciona para `playvalorant.com/opt_in#access_token=…`. O app intercepta esse redirecionamento, pega os entitlements, a conta (userinfo) e o shard (riot-geo), e copia os cookies do CookieManager para o SecureStore.
-4. Nas aberturas seguintes, o `fetch` vai em `/authorize`: o cookie jar do Android é o mesmo da WebView, e a URL final traz os tokens. Depois de cada renovação, os cookies rotacionados são salvos de novo.
+4. Nas aberturas seguintes, uma **WebView invisível** (sempre montada no layout raiz, `SilentReauthWebView`) carrega o `/authorize`: o cookie jar do Android é o mesmo da WebView de login, e ela intercepta o redirecionamento final do mesmo jeito que a tela de login faz, antes de visitá-lo. Depois de cada renovação, os cookies rotacionados **e o token** são salvos de novo (o token, para a tarefa em segundo plano poder reaproveitá-lo).
 5. Se a renovação cair no login da Riot, a sessão é apagada e o app volta para o login com o aviso "Sua sessão expirou". Falta de internet **não** desloga.
-6. **Sair** apaga cookies (SecureStore e CookieManager), conta, cache, cartas e a tarefa em segundo plano.
-- Tokens só em memória. Nada de `console.log` com token, cookie ou URL de redirecionamento.
+6. **Sair** apaga cookies (SecureStore e CookieManager), conta, token salvo, cache, cartas e a tarefa em segundo plano.
+- Tokens só em memória (e uma cópia no SecureStore, só para a tarefa em segundo plano reaproveitar enquanto ainda vale). Nada de `console.log` com token, cookie ou URL de redirecionamento.
+
+**Por que WebView e não `fetch` (corrigido em 2026-10-31, achado no primeiro teste com conta real):** o plano original usava `fetch(AUTHORIZE_URL, {credentials:'include'})`, apoiado no fato (confirmado lendo o código-fonte do React Native) de que o `fetch` no Android **de fato** compartilha cookies com a WebView, via `ForwardingCookieHandler`/`CookieJarContainer`, que o `NetworkingModule` liga ao `OkHttpClient` por padrão. Isso funciona. O que não funciona é o passo seguinte: o token da Riot vem no **fragmento** do link de redirecionamento (depois do `#`), e fragmento é, por definição do protocolo HTTP, algo que **nunca é enviado a um servidor** — só o motor de um navegador (ou de uma WebView) consegue ler essa parte antes de visitar o link. O `fetch` segue o redirecionamento até o fim, chegando de fato a `playvalorant.com/opt_in`, só que **sem o fragmento**; como o próprio servidor da Riot não enxerga aquela parte do link, ele devolve **404** para esse pedido, igual devolveria para qualquer outro cliente HTTP comum. O diagnóstico exato, com uma conta real: `fetch:origem=cookiemanager:status=404:host=playvalorant.com:hash=false` — confirmando que o cookie foi encontrado certo (`origem=cookiemanager`) e que o problema era só esse. Também confirmei que o Android **não** deixa usar `redirect: 'manual'` no `fetch` para ler o cabeçalho `Location` diretamente (o `NetworkingModule` do React Native não expõe esse controle; o OkHttp sempre segue o redirecionamento sozinho). A correção foi trocar para uma WebView invisível (`SilentReauthWebView`, sempre montada, carrega só quando chamada), que intercepta o link do mesmo jeito que a tela de login — e isso **não pode rodar na tarefa em segundo plano** (ela roda sem tela), daí o token salvo no SecureStore como reforço: se a tarefa acordar com o token ainda dentro da validade (~55 min), ela reaproveita sem precisar renovar; se não, ela falha graciosamente e a próxima abertura do app resolve.
 
 **Loja:** abre na hora com o cache (AsyncStorage) e atualiza por trás. Também atualiza ao puxar a tela, quando qualquer contagem zera (diária, pacote ou mercado) e ao voltar para o primeiro plano depois de uma troca. O skeleton aparece só sem cache. Com cache e erro, aparece uma faixa "Mostrando a loja das HH:MM" com "Tentar de novo".
 
@@ -400,6 +396,68 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - **Ícone do mercado noturno no topo da Loja** (`assets/images/night-market.png`, a partir de `~/Downloads/nightmarket.png`): fica à esquerda do coração, cinza como os outros ícones, com um ponto vermelho, e só aparece com o mercado aberto. O toque abre `/mercado`. É arte do jogo enviada pelo usuário: exceção consciente à regra inicial de não usar arte da Riot.
 - O banner "Mercado noturno disponível" **foi removido**; o aviso agora é o balão que aponta para o ícone (seção 6.8).
 
+## 6.14 Revisão de segurança (2026-10-30)
+
+| Ponto | Situação |
+|---|---|
+| Senha | Nunca passa pelo app: login na página oficial da Riot (WebView). |
+| Tokens (access + entitlements) | Só em memória; renovados a cada abertura pelo cookie; nunca gravados. |
+| Cookies de sessão (`ssid` etc.) | `expo-secure-store` (Keystore do Android). **Ressalva:** também ficam no `CookieManager` da WebView (pasta privada do app, sem criptografia própria). É inevitável com login por WebView, e protegido pelo sandbox do Android. **Sair** apaga os dois. |
+| Backup | **`allowBackup: false`** (antes `true`): o backup do Google podia levar o cookie de sessão para outro aparelho. |
+| Logs | Nenhum `console.*` no código; erros mostram só o status HTTP, nunca token, cookie ou URL de redirecionamento. |
+| Permissões do APK | `INTERNET`, `VIBRATE`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` (reagendar avisos ao reiniciar), `BIND_JOB_SERVICE` (WorkManager). **Removidas** (`blockedPermissions` + `permissions: []`): `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`. Conferido no manifesto gerado. |
+| Rede | Só HTTPS; tráfego em texto puro bloqueado no APK (padrão do release). |
+| Deep links (`minhaloja://`) | Só abrem telas, atrás do login; o ID de skin é validado como UUID antes de ir para uma URL. |
+| WebViews | Login: sem JS injetado e sem acesso a arquivos. Vídeo: navegação restrita a `media.valorant-api.com`; URL escapada. |
+| Modo demonstração e painel de ferramentas | Só no build de desenvolvimento (`__DEV__`). |
+| EAS Update | Quem tiver acesso à conta Expo pode publicar código no app dos amigos. A conta entra **pelo GitHub**, então o 2FA é o do **GitHub** (a Expo não oferece 2FA próprio para login via GitHub). Opcional: assinatura de código das atualizações. |
+| Repositório | Público é aceitável (projetos parecidos, como VShopApp e SkinPeek, são públicos). Verificado: nenhum segredo versionado; o ID do projeto Expo é público por natureza. Licença MIT do template: decidir se mantém. |
+| Termos da Riot | Uso de API não oficial = risco para a conta (avisado no aceite). |
+| Privacidade | O aceite foi atualizado para citar a Expo (checagem de atualizações, sem dados pessoais); `CONSENT_VERSION` = `2026-10-30`, então o aceite é pedido de novo. |
+
+## 6.15 Desempenho e tamanho do app, segunda rodada (2026-10-30)
+
+Depois da seção 6.12 (relógio único, pulso finito, revelação do mercado), uma revisão geral de carregamento de telas, imagens, vídeos e do peso do APK.
+
+**Medido com `npx expo export -p android` (bundle + assets que vão para dentro do APK; não precisa de build nativo nem de Android Studio):**
+
+| | Antes | Depois |
+|---|---|---|
+| Pasta `assets/` exportada | 6,5 MB | **1,5 MB** |
+| Total exportado (bundle + assets) | 11 MB | **5,7 MB** |
+| Arquivos `.ttf` embutidos | 19 | **4** |
+| Bytecode JS (`.hbc`) | 4,41 MB | 4,40 MB |
+
+**A causa dos 19 `.ttf`:** o pacote `@expo-google-fonts/inter` tem um índice que faz `require()` das **18 variações** da fonte (todos os pesos, normal e itálico), mesmo usando só 3. O Metro empacota todo `require()` de asset que encontra no arquivo, não só os que são importados por nome. Troquei para importar cada peso do caminho direto (`@expo-google-fonts/inter/400Regular`, por exemplo), que tem seu próprio índice com um `require()` só. Resultado: de ~5 MB de fontes para ~1 MB. É o mesmo problema, resolvido, que o `@expo/vector-icons` já evitava (o projeto já importava `Ionicons` pelo caminho direto).
+
+**Catálogo da Riot sem ida à rede desnecessária:** `loadContent()` (chamado pela Loja, pela lista de desejos, pelos detalhes da skin e do pacote, pela tarefa em segundo plano — 6 lugares) conferia `/v1/version` **a cada chamada**, mesmo com o catálogo já em memória. Como o catálogo só muda com um patch do jogo (dias de intervalo), agora ele só reconfirma com o servidor a cada 3 h; dentro desse prazo, devolve o que já está em memória na hora. Isso tira uma ida e volta de rede inteira de quase toda troca de tela.
+
+**Imagens mais rápidas para reaparecer:** as imagens de skin (`expo-image`) usavam `cachePolicy="disk"`, que precisa reler e redecodificar o arquivo a cada exibição. Como a mesma imagem aparece em vários lugares na mesma sessão (oferta do dia, lista de desejos, detalhes, pacote, carta do mercado), troquei para `"memory-disk"`: depois de decodificada uma vez, fica pronta na memória para as próximas. A imagem do pacote em destaque (a maior da tela) também ganhou `priority="high"`.
+
+**Peso do APK (ainda não medido num build real; local build nativo não é feito por decisão já registrada neste documento — só dá para confirmar o número final gerando o `apk` pela nuvem do EAS):**
+- **`@expo/ui` removido** (não usado em nenhuma tela): ele é a origem de `coreFeatures: ['swiftui','compose']` no autolinking, ou seja, o build Android estava linkando as bibliotecas do **Jetpack Compose** só por esse pacote existir, mesmo sem nenhum componente Compose no app. Confirmado com `expo-modules-autolinking resolve`: `coreFeatures` foi para `[]` e o número de módulos linkados caiu de 36 para 33.
+- **`expo-symbols`, `expo-device`, `expo-web-browser` removidos**: não usados em nenhum arquivo (`expo-symbols` e `@expo/ui` são dependência opcional do `expo-router`, só usada pelas telas de abas nativas, que este app não usa — confirmado lendo o código-fonte do `expo-router`, que isola essas importações em `try/catch`).
+- **`expo-build-properties` adicionado**, com `enableShrinkResourcesInReleaseBuilds: true` (removia recursos Android não usados; vinha `false` por padrão, só o encolhimento de código já vinha `true`) e `buildArchs` restrito a `armeabi-v7a` e `arm64-v8a` **só no perfil de produção** (`!IS_DEV`), tirando as bibliotecas nativas de `x86`/`x86_64`, que só servem para emulador — nenhum celular real usa. O build de desenvolvimento mantém as 4 arquiteturas, porque o emulador pode precisar delas.
+- **544 KB de imagens do template removidos**, sem nenhuma referência no código: `assets/expo.icon/` (ícone iOS, que este app não tem), `expo-badge*.png`, `expo-logo.png`, `favicon.png` (só web), `react-logo*.png`, `tutorial-web.png`, `logo-glow.png`, `assets/images/tabIcons/*` (ícones de abas; o app usa `Stack`, não `Tabs`).
+
+**Não foi necessário:**
+- Trocar a estratégia de vídeo: já media hoje `cache-control: max-age=28800` e `accept-ranges: bytes` nos vídeos da CDN da Riot — a WebView já reaproveita isso do cache HTTP padrão do Android sem nenhum código extra.
+- Paralelizar `fetchStorefront`/`fetchWallet` ou os três `fetch` do catálogo (tiers/armas/pacotes): já rodavam em paralelo (`Promise.all`).
+- `resolveBundleItems` (itens do pacote): já resolvia em paralelo.
+
+**Número final, confirmado no build `apk` de 2026-10-30** (`versionCode` 2, primeiro build de produção, keystore criada nesse build):
+
+| | |
+|---|---|
+| **APK para baixar** | **48,7 MB** (51.038.896 bytes) |
+| Bibliotecas nativas (`lib/`) | 38 MB extraído — `arm64-v8a` 23 MB + `armeabi-v7a` 16 MB; **nenhum `x86`/`x86_64`** (confirmado abrindo o APK) |
+| Código (`classes.dex`) | 6,9 MB, **1 arquivo só** (o encolhimento de código uniu tudo) |
+| Recursos (`res/`) | 4,3 MB |
+| Bundle JS + fontes/imagens (`assets/`) | 3,5 MB |
+| Vestígio de Jetpack Compose | **nenhum** (procurado no APK extraído) |
+
+O grosso do peso agora é `lib/`, que são bibliotecas nativas pré-compiladas do React Native, do Hermes e do Android (não dá para encolher mais sem abrir mão de alguma biblioteca nativa que o app usa de verdade, como a WebView ou o gesture-handler).
+
 ## 7. Regras do projeto
 
 - Instalar dependências **sempre** com `npx expo install <pacote>`.
@@ -408,6 +466,7 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - Antes de concluir uma tarefa: `npm run lint` e `npm run typecheck`.
 - Dados apenas locais. Nada sai do aparelho sem decisão explícita.
 - Não usar `localeCompare(…, idioma)` nem `String.normalize()` em listas grandes: no Android (Hermes) passam pelo Java e travam o app. Usar `src/lib/text.ts`.
+- Pacotes de fonte/ícone (`@expo-google-fonts/*`, `@expo/vector-icons/*`): sempre importar pelo caminho de cada peso/ícone (ex.: `@expo-google-fonts/inter/400Regular`), nunca do índice do pacote. O índice faz `require()` de todos os arquivos (ex.: as 18 variações do Inter, ~5 MB), e o Metro empacota todo `require()` de asset que encontra, usado ou não.
 
 ---
 
@@ -424,15 +483,21 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - Mapear `br`/`latam` → shard `na`.
 - Tema Raycast + acento `#FF4655` + raridade como destaque.
 - Módulo nativo próprio (`modules/riot-cookies`) para ler e gravar os cookies HttpOnly.
-- Reautenticação por `fetch` no `/authorize`, usando o cookie jar compartilhado com a WebView. Se o `fetch` perder o fragmento, o plano B é a própria tela de login, que passa sozinha quando o cookie é válido.
+- Reautenticação por uma **WebView invisível** (`SilentReauthWebView`) em `/authorize`, não por `fetch` (seção 6.7: o `fetch` perde o token, confirmado com conta real em 2026-10-31).
+- Token salvo no SecureStore, além dos cookies, para a tarefa em segundo plano reaproveitar enquanto ainda vale (ela não pode abrir WebView).
 - Estado (sessão, loja) com Context simples, sem biblioteca de estado.
 - Mercado noturno numa rota própria (`/mercado`), com deep link pela notificação.
 - Cache do catálogo compacto (~400 KB), por causa do limite por item do AsyncStorage no Android.
 - Verso da carta na cor da raridade (fiel ao jogo).
 - Raridade só pela cor, sem o nome.
 - Vídeos de skin pela WebView (sem build nativo novo).
+- Importar fontes e ícones pelo caminho direto de cada peso, nunca do índice do pacote (seção 6.15).
+- `loadContent()` só reconfirma a versão do catálogo com o servidor a cada 3 h, em vez de a cada chamada.
+- `expo-image` com `cachePolicy="memory-disk"` nas imagens de skin (reaparecem em várias telas na mesma sessão).
+- `expo-build-properties`: encolhimento de recursos Android e ABIs restritas a ARM no perfil de produção.
 
 ### Depreciadas / arquivadas
+- **Renovação da sessão por `fetch(AUTHORIZE_URL, {credentials:'include'})`**: confirmado com conta real (2026-10-31) que o `fetch` perde o token, que vem no fragmento do link (nunca chega a um servidor). Trocado pela WebView invisível (seção 6.7).
 - **Storefront v2 (GET)**: substituída pela v3.
 - **Login com usuário e senha via API (`PUT /api/v1/authorization`)**: descartado. É inseguro e hoje é bloqueado por captcha. O login é pela WebView oficial.
 - **Ícones oficiais das moedas e fontes da Riot**: descartados por regra de marca. As moedas aparecem como texto.
@@ -452,6 +517,8 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - **"TOQUE PARA REVELAR" em cada carta**: movido para o cabeçalho.
 - **Animações no conteúdo da carta** (zoom da arma, desconto deslizando com mola, preço subindo): removidas a pedido. Só a capa anima.
 - **Controles padrão do `<video>` da WebView**: descartados, porque destoavam do app. Trocados por controles próprios.
+- **`@expo/ui`, `expo-symbols`, `expo-device`, `expo-web-browser`**: template sem uso; `@expo/ui` linkava o Jetpack Compose à toa (seção 6.15).
+- **Cache HTTP próprio para os vídeos**: desnecessário; a CDN da Riot já manda `cache-control`/`etag`, e a WebView já reaproveita isso sozinha.
 - **Brilho com `boxShadow` animado**: pesado demais para 60 fps. Trocado por círculos concêntricos com transform/opacity.
 - **Mercado noturno na mesma tela da loja**: proibido por regra do produto.
 - **Banner "Mercado noturno disponível" acima da loja**: trocado pelo ícone no topo + balão apontando para ele, que volta a cada 6 h.
@@ -487,7 +554,11 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - [x] `.gitignore` reforçado para segredos
 - [x] Logado no Expo (`luizhsnn`); projeto EAS criado e vinculado; EAS Update configurado
 - [x] Tema, boas-vindas, login, Loja, mercado noturno, notificação com deep link, tarefa em segundo plano e modo demo
+- [x] 2FA ativado no GitHub (protege também a conta Expo, que entra por ele)
 - [x] Detalhes da skin e do pacote, lista de desejos com catálogo, avisos (loja, desejos, mercado) e configurações
+- [x] Segunda rodada de desempenho e tamanho: fontes, cache do catálogo, cache de imagem, Compose removido, ABIs restritas, assets do template limpos (seção 6.15)
+- [x] Primeiro build `apk` gerado (`versionCode` 2): **48,7 MB**, keystore de produção criada
+- [x] Primeiro login real testado (2026-10-31): achado e corrigido o bug "sessão expirada sempre" (seção 6.7); correção publicada por `eas update`
 
 ### ⏳ Falta você fazer
 - [ ] Rodar o primeiro build de dev: `npx eas-cli@latest build -p android --profile development` (responda **Yes** para gerar a keystore)
@@ -495,7 +566,8 @@ A ordem da animação é a mesma (X → vizinhos → clarão → buraco do centr
 - [ ] `npm run start:dev` e conectar o celular (seção 6.2)
 - [ ] (Opcional) Corrigir `JAVA_HOME`/`ANDROID_HOME` no `~/.zshrc` (seção 2)
 - [ ] (Opcional) Reinstalar o Android Studio para ter a interface gráfica
-- [ ] **GitHub:** o remote `origin` aponta para `luizhsrdev/valoshopviewer`, que hoje está **PÚBLICO** e vazio (e o nome é diferente da pasta, `valshopviewer`). Se quiser privado: `gh repo edit luizhsrdev/valoshopviewer --visibility private --accept-visibility-change-consequences`
+- [ ] (Opcional) Deixar o repositório privado: não é necessário, já que não há segredos versionados.
 - [ ] Decidir sobre o `LICENSE` (MIT) que veio do template, num app privado
-- [ ] Testar o login real com sua conta no celular (a reautenticação por cookie só se confirma com uma conta de verdade)
+- [ ] Confirmar que a renovação da sessão por WebView resolveu o "sessão expirada sempre" (corrigido em 2026-10-31, publicado por `eas update`; falta você testar fechando e abrindo de novo)
 - [ ] Commits: você faz quando quiser (eu não commito)
+- [ ] Decidir sobre o "V" do Valorant no logo (marca da Riot)
