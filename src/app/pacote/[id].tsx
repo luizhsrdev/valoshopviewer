@@ -63,7 +63,7 @@ export default function PacoteScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.hero}>
-            <Image source={bundle.image ?? undefined} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
+            <Image source={bundle.image ?? undefined} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
             <LinearGradient colors={['transparent', colors.canvas]} locations={[0.55, 1]} style={StyleSheet.absoluteFill} />
           </View>
 
@@ -130,7 +130,7 @@ export default function PacoteScreen() {
                       <View key={it.key} style={[styles.row, i > 0 && styles.rowDivider]}>
                         <View style={styles.thumb}>
                           {it.image ? (
-                            <Image source={it.image} style={StyleSheet.absoluteFill} contentFit="contain" cachePolicy="disk" />
+                            <Image source={it.image} style={StyleSheet.absoluteFill} contentFit="contain" cachePolicy="memory-disk" />
                           ) : (
                             <Text variant="micro" color={colors.ash}>
                               Aa

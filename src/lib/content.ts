@@ -129,12 +129,24 @@ async function download(version: string, riotClientVersion: string): Promise<Con
 }
 
 let memory: Content | null = null;
+/** Quando `memory` foi confirmado contra o servidor pela última vez. */
+let memoryCheckedAt = 0;
+/**
+ * O catálogo muda só quando o jogo recebe um patch (dias de intervalo), mas
+ * `loadContent()` é chamado em quase toda troca de tela (loja, desejos,
+ * detalhes, pacote, tarefa em segundo plano). Sem isso, cada uma delas pagava
+ * uma ida e volta de rede a mais só para confirmar "nada mudou".
+ */
+const REVALIDATE_MS = 3 * 60 * 60 * 1000;
 
 /**
- * Catálogo pronto para uso. Usa o cache e só baixa de novo se a versão mudou.
- * Sem internet, devolve o cache (se houver).
+ * Catálogo pronto para uso. Usa o cache e só baixa de novo se a versão mudou;
+ * reconfirma com o servidor no máximo a cada `REVALIDATE_MS`. Sem internet,
+ * devolve o cache (se houver).
  */
 export async function loadContent(): Promise<Content> {
+  if (memory && Date.now() - memoryCheckedAt < REVALIDATE_MS) return memory;
+
   const cached = memory ?? (await readJson<Content>(keys.content));
   let version: { version: string; riotClientVersion: string } | null = null;
   try {
@@ -143,6 +155,7 @@ export async function loadContent(): Promise<Content> {
     if (cached) return (memory = cached);
     throw e;
   }
+  memoryCheckedAt = Date.now();
   if (cached && cached.version === version.version) return (memory = cached);
   const fresh = await download(version.version, version.riotClientVersion);
   await writeJson(keys.content, fresh);

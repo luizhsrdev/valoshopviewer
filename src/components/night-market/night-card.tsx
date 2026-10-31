@@ -147,7 +147,7 @@ function Front({
       <View style={styles.weaponCenter} pointerEvents="none">
         {length > 0 ? (
           <View style={{ width: length, height: length / WEAPON_ASPECT }}>
-            <Image source={offer.image ?? undefined} style={styles.image} contentFit="contain" cachePolicy="disk" />
+            <Image source={offer.image ?? undefined} style={styles.image} contentFit="contain" cachePolicy="memory-disk" />
           </View>
         ) : null}
       </View>

@@ -29,7 +29,7 @@ export function OfferCard({ offer, onPress }: { offer: SkinOffer; onPress?(): vo
           style={styles.image}
           contentFit="contain"
           transition={200}
-          cachePolicy="disk"
+          cachePolicy="memory-disk"
         />
       </View>
       <Text variant="label" color={colors.ink} numberOfLines={1}>

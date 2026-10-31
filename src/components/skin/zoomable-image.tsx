@@ -108,7 +108,7 @@ export function ZoomableImage({ uri }: { uri: string | null }) {
           height.set(e.nativeEvent.layout.height);
         }}>
         <Animated.View style={[StyleSheet.absoluteFill, style]}>
-          <Image source={uri ?? undefined} style={StyleSheet.absoluteFill} contentFit="contain" transition={150} cachePolicy="disk" />
+          <Image source={uri ?? undefined} style={StyleSheet.absoluteFill} contentFit="contain" transition={150} cachePolicy="memory-disk" />
         </Animated.View>
       </View>
     </GestureDetector>

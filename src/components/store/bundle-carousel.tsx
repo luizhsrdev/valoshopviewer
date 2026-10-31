@@ -79,7 +79,9 @@ function BundleCard({ bundle, width }: { bundle: FeaturedBundle; width: number }
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           transition={200}
-          cachePolicy="disk"
+          cachePolicy="memory-disk"
+          // É a maior imagem da tela, logo no topo: decodifica antes das outras.
+          priority="high"
         />
         <LinearGradient
           colors={['transparent', colors.surfaceCard]}

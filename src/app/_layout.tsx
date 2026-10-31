@@ -2,7 +2,13 @@
 import '@/lib/background';
 
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
+// Caminho direto de cada peso, em vez do pacote `@expo-google-fonts/inter`: o
+// índice do pacote faz `require()` das 18 variações da fonte (~5 MB), mesmo
+// usando só 3. Assim o bundle carrega só os 3 arquivos (~1 MB).
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { useFonts } from '@expo-google-fonts/inter/useFonts';
 import * as Notifications from 'expo-notifications';
 import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';

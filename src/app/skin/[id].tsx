@@ -143,7 +143,7 @@ export default function SkinScreen() {
                         accessibilityLabel={`Variante ${v.label}`}>
                         <View style={[styles.swatch, { borderColor: selected ? colors.ink : colors.hairline }]}>
                           {v.swatch ? (
-                            <Image source={v.swatch} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
+                            <Image source={v.swatch} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
                           ) : (
                             <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceElevated }]} />
                           )}
