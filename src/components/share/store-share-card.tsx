@@ -63,7 +63,7 @@ export function StoreShareCard({ shop, who, onReady }: Props) {
             <Text variant="micro" color={colors.mute}>
               PACOTE EM DESTAQUE
             </Text>
-            <Text variant="bodyStrong" color={colors.ink} numberOfLines={1}>
+            <Text variant="bodyStrong" color={colors.ink}>
               {bundle.name}
             </Text>
             <View style={styles.priceRow}>
@@ -92,7 +92,7 @@ export function StoreShareCard({ shop, who, onReady }: Props) {
                 onError={bump}
               />
             </View>
-            <Text variant="caption" color={colors.ink} numberOfLines={1} style={styles.offerName}>
+            <Text variant="caption" color={colors.ink} style={styles.offerName}>
               {o.name}
             </Text>
             <Text variant="micro" color={colors.mute}>
@@ -113,7 +113,9 @@ export function StoreShareCard({ shop, who, onReady }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, padding: space.lg, gap: space.md },
+  // Sem altura fixa: o cartão cresce com o conteúdo, então nada fica cortado
+  // (nome grande, mais itens...) — quem rola é o painel em volta, não o cartão.
+  card: { width: '100%', padding: space.lg, gap: space.md },
   header: { gap: 2 },
   kicker: { letterSpacing: 1.2 },
   bundle: { borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.surfaceCard, borderWidth: 1, borderColor: colors.hairline },
@@ -124,10 +126,6 @@ const styles = StyleSheet.create({
   offer: {
     flexBasis: '47%',
     flexGrow: 1,
-    // aspectRatio fixo: dentro de um flexWrap, a linha não estica os itens
-    // por altura sozinha, e sem altura definida o Android mede a imagem
-    // como 0×0 e nem tenta carregá-la (o onLoad nunca dispara).
-    aspectRatio: 1.05,
     borderRadius: radius.md,
     borderWidth: 1.5,
     backgroundColor: colors.surfaceCard,
@@ -135,9 +133,11 @@ const styles = StyleSheet.create({
     gap: 2,
     overflow: 'hidden',
   },
-  offerImageBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // Proporção fixa só na imagem (não na célula inteira): garante que ela
+  // sempre tenha um tamanho pra carregar, mesmo com o nome ocupando 2+ linhas.
+  offerImageBox: { aspectRatio: 1.5, alignItems: 'center', justifyContent: 'center' },
   offerImage: { width: '90%', height: '90%' },
   offerName: { marginTop: 2 },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'center', marginTop: 'auto' },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'center', marginTop: space.xs },
   badge: { width: 16, height: 16, borderRadius: 4 },
 });

@@ -17,8 +17,6 @@ type Props = {
   dialogTitle: string;
   /** Só libera o botão depois que as imagens do cartão carregarem. */
   ready: boolean;
-  /** Largura ÷ altura do cartão. Padrão 9:16 (formato "story"). */
-  aspectRatio?: number;
   children: ReactNode;
 };
 
@@ -28,7 +26,7 @@ type Props = {
  * cada abertura remonta o cartão do zero, o que já reseta o estado de
  * "imagens carregadas" sem precisar de lógica extra.
  */
-export function ShareSheet({ onClose, title, dialogTitle, ready, aspectRatio = 9 / 16, children }: Props) {
+export function ShareSheet({ onClose, title, dialogTitle, ready, children }: Props) {
   const insets = useSafeAreaInsets();
   const cardRef = useRef<ComponentRef<typeof View>>(null);
   const [busy, setBusy] = useState(false);
@@ -69,7 +67,7 @@ export function ShareSheet({ onClose, title, dialogTitle, ready, aspectRatio = 9
           <ScrollView style={styles.previewScroll} contentContainerStyle={styles.previewContent} showsVerticalScrollIndicator={false}>
             {/* collapsable={false}: no Android, uma View "vazia" de estilo pode ser
                 otimizada para fora da árvore nativa, e o view-shot perde a referência. */}
-            <View ref={cardRef} collapsable={false} style={[styles.cardShadow, { aspectRatio }]}>
+            <View ref={cardRef} collapsable={false} style={styles.cardShadow}>
               {children}
             </View>
           </ScrollView>

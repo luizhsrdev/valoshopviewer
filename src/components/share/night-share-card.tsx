@@ -62,7 +62,7 @@ export function NightShareCard({ night, who, onReady }: Props) {
                 onError={bump}
               />
             </View>
-            <Text variant="caption" color={colors.ink} numberOfLines={1} style={styles.offerName}>
+            <Text variant="caption" color={colors.ink} style={styles.offerName}>
               {o.name}
             </Text>
             <View style={styles.priceRow}>
@@ -88,17 +88,15 @@ export function NightShareCard({ night, who, onReady }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, padding: space.lg, gap: space.md },
+  // Sem altura fixa: o cartão cresce com o conteúdo, então nada fica cortado
+  // (nome grande, mais itens...) — quem rola é o painel em volta, não o cartão.
+  card: { width: '100%', padding: space.lg, gap: space.md },
   header: { gap: 2 },
   kicker: { letterSpacing: 1.2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   offer: {
     flexBasis: '31%',
     flexGrow: 1,
-    // aspectRatio fixo: dentro de um flexWrap, a linha não estica os itens
-    // por altura sozinha, e sem altura definida o Android mede a imagem
-    // como 0×0 e nem tenta carregá-la (o onLoad nunca dispara).
-    aspectRatio: 0.78,
     borderRadius: radius.md,
     borderWidth: 1.5,
     backgroundColor: colors.surfaceCard,
@@ -116,11 +114,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  offerImageBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // Proporção fixa só na imagem (não na célula inteira): garante que ela
+  // sempre tenha um tamanho pra carregar, mesmo com o nome ocupando 2+ linhas.
+  offerImageBox: { aspectRatio: 1.3, alignItems: 'center', justifyContent: 'center' },
   offerImage: { width: '85%', height: '85%' },
   offerName: { marginTop: 2 },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' },
   strike: { textDecorationLine: 'line-through' },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'center', marginTop: 'auto' },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'center', marginTop: space.xs },
   badge: { width: 16, height: 16, borderRadius: 4 },
 });

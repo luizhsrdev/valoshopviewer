@@ -168,7 +168,6 @@ export default function Mercado() {
           title="Compartilhar mercado"
           dialogTitle="Meu mercado noturno"
           ready={shareReady}
-          aspectRatio={3 / 4}
           onClose={() => setSharing(false)}>
           <NightShareCard night={night} who={who} onReady={() => setShareReady(true)} />
         </ShareSheet>
